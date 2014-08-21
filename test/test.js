@@ -7,8 +7,6 @@ var options = {
   seleniumServer: "http://127.0.0.1:4444/wd/hub"
 }
 
-var server = require("../index").listen(3002, function() {
-  options.applicationPort = server.address().port;
-  console.log('about to run testium');
-  testium.run(options, function(error, status) { process.exit(status) });
-})
+options.applicationPort = 3002;
+console.log('about to run testium');
+testium.run(options, function(error, status) { process.exit(status) });
