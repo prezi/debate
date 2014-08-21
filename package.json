@@ -1,0 +1,15 @@
+{
+  "name": "debate",
+  "version": "0.0.0",
+  "description": "sockjs server with tests",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm test"
+  },
+  "dependencies": {
+    "node-static": "0.5.9",
+    "sockjs": "*"
+  },
+  "author": "Elise Huard",
+  "license": "BSD-2-Clause"
+}
