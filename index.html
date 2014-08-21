@@ -33,12 +33,14 @@
       }
     </style>
 </head><body lang="en">
-    <h1>SockJS Echo example</h1>
+    <h1>SockJS with reconnection</h1>
 
     <div id="first" class="box">
       <div></div>
       <form><input autocomplete="off" placeholder="Type here..."></input></form>
     </div>
+
+    <div id="status">disconnected</div>
 
     <script>
         $( document ).ready(function() {
@@ -47,6 +49,7 @@
             var div  = $('#first div');
             var inp  = $('#first input');
             var form = $('#first form');
+            var statusbox = $('#status');
 
             var print = function(m, p) {
                 p = (p === undefined) ? '' : JSON.stringify(p);
@@ -58,10 +61,11 @@
             var reconnect = function() {
                 var sockjs = new SockJS(sockjs_url);
 
-                sockjs.onopen    = function()  {print('[*] open', sockjs.protocol);};
+                sockjs.onopen    = function()  {print('[*] open', sockjs.protocol); statusbox.text('connected');};
                 sockjs.onmessage = function(e) {print('[.] message', e.data);};
                 sockjs.onclose = function(e) {
                         print('[*] close');
+                        statusbox.text('disconnected');
                         setTimeout(reconnect, 1000); // try every second
                 };
                 form.unbind(); // before rebinding with current socket
