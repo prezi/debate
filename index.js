@@ -26,5 +26,10 @@ server.addListener('upgrade', function(req,res){
 
 sockjs_echo.installHandlers(server, {prefix:'/echo'});
 
-console.log(' [*] Listening on 0.0.0.0:9999' );
-server.listen(9999, '0.0.0.0');
+// app is a callback function or an express application
+module.exports = server;
+
+if (!module.parent) {
+  server.listen(9999, '0.0.0.0');
+  console.log(' [*] Listening on 0.0.0.0:9999' );
+}
