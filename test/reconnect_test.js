@@ -1,40 +1,64 @@
 var browser = require("testium").getBrowser(),
     assert = require("assert"),
+    psTree = require("ps-tree"),
     url = require("url"),
     sys = require('sys'),
-    exec = require('child_process').exec;
-
+    cp = require('child_process'),
+    exec = cp.exec;
 
 describe('reconnect behavior', function() {
+    var websocketChild;
+    // if child process created, it should always be killed at the end
+    afterEach(function(done) {
+      if (websocketChild) {
+        psTree(websocketChild.pid, function(err, children) {
+            cp.spawn('kill', ['-9'].concat(children.map(function (p) {return p.PID})))
+            websocketChild.kill();
+            websocketChild.on('close', function() {
+              done();
+            });
+        });
+      } else {
+        done();
+      }
+    });
+
+    beforeEach(function(done) {
+      websocketChild = cp.spawn('node', ['/Users/elise/Dropbox/code/debate/websocket.js']);
+      setTimeout(done, 500);
+    });
+
     it('connects when accessing the page', function() {
-        exec('node index.js', function(error, stdout, stderr) {
-            browser.navigateTo("/")
-            browser.assert.elementHasText("#status", "connected")
-        });
-    })
+        browser.navigateTo("/")
+        browser.assert.elementHasText("#status", "connected")
+     });
 
-    it('shows disconnect when server goes down', function() {
-        exec('node index.js', function(error, stdout, stderr) {
-            browser.navigateTo("/");
-            browser.assert.elementHasText("#status", "connected")
-            /// cowboy time with killall
-            exec('killall node', function(error, stdout, stderr) {
-              browser.assert.elementHasText("#status", "disconnected")
-            });
+    it('shows disconnect when server is down', function(done) {
+      browser.navigateTo("/")
+      psTree(websocketChild.pid, function(err, children) {
+        cp.spawn('kill', ['-9'].concat(children.map(function (p) {return p.PID})))
+        websocketChild.kill();
+        websocketChild.on('close', function(code, signal) {
+          websocketChild = null;
+          browser.assert.elementHasText("#status", "disconnected")
+          done();
         });
-    })
-    it('reconnects when server goes back up', function() {
-        exec('node index.js', function(error, stdout, stderr) {
-            browser.navigateTo("/");
-            browser.assert.elementHasText("#status", "connected")
-            /// cowboy time with killall
-            exec('killall node', function(error, stdout, stderr) {
-              browser.assert.elementHasText("#status", "disconnected")
-              exec('node index.js', function(error, stdout, stderr) {
-                 browser.assert.elementHasText("#status", "connected")
-              });
-            });
-        });
-    })
+      });
+    });
+
+    it('reconnects when server goes back up', function(done) {
+      browser.navigateTo("/");
+      psTree(websocketChild.pid, function(err, children) {
+          cp.spawn('kill', ['-9'].concat(children.map(function (p) {return p.PID})))
+          websocketChild.kill();
+          websocketChild.on('close', function(code, signal) {
+              // re-spawn
+              websocketChild = cp.spawn('node', ['/Users/elise/Dropbox/code/debate/websocket.js']);
+              setTimeout(function() {
+                  browser.assert.elementHasText("#status", "connected")
+                  done();
+              }, 750);
+          });
+      });
+   });
 });
-
