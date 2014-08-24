@@ -1,14 +1,29 @@
 # Debate
+
 Chat server in Haskell using sockjs.
 
-## Todo
-handle
-- reconnect
-- fallback to XHR polling
+## Prerequisites
 
-## Integration tests
+node.js stable version and npm
+on mac os x:
 
-Prerequisits: running selenium server
-http://www.danstraw.com/installing-selenium-2-as-a-service-on-mac-os-x/2010/09/20/
+    brew install node
 
-java -jar /usr/lib/selenium/selenium-server-your-version.jar
+for tests: selenium: download [selenium server](http://docs.seleniumhq.org/download/)
+
+## Run integration tests
+
+check out project
+run
+
+    npm install
+
+(xcode may be required for native dependencies :( )
+
+start selenium server
+
+    java -jar <downloaded selenium server>
+
+run tests
+
+    node test/test.js
