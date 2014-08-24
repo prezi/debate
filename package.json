@@ -4,7 +4,7 @@
   "description": "sockjs server with tests",
   "main": "index.js",
   "scripts": {
-    "test": "npm test"
+    "test": "node test/test.js"
   },
   "dependencies": {
     "node-static": "0.5.9",
