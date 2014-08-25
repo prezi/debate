@@ -61,7 +61,7 @@
             var reconnect = function() {
                 var sockjs = new SockJS(sockjs_url);
 
-                sockjs.onopen    = function()  {print('[*] open', sockjs.protocol); statusbox.text('connected');};
+                sockjs.onopen    = function()  {print('[*] open', sockjs.protocol); statusbox.text('reconnected');};
                 sockjs.onmessage = function(e) {print('[.] message', e.data);};
                 sockjs.onclose = function(e) {
                         print('[*] close');

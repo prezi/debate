@@ -27,12 +27,12 @@ describe('reconnect behavior', function() {
 
     beforeEach(function(done) {
       websocketChild = cp.spawn(config.websocketServer, config.websocketArgs);
-      setTimeout(done, 500);
+      setTimeout(done, 1000);
     });
 
     it('connects when accessing the page', function() {
         browser.navigateTo("/")
-        browser.assert.elementHasText("#status", "connected")
+        browser.assert.elementHasText("#status", "reconnected")
      });
 
     it('shows disconnect when server is down', function(done) {
@@ -57,9 +57,9 @@ describe('reconnect behavior', function() {
               // re-spawn
               websocketChild = cp.spawn(config.websocketServer, config.websocketArgs);
               setTimeout(function() {
-                  browser.assert.elementHasText("#status", "connected")
+                  browser.assert.elementHasText("#status", "reconnected")
                   done();
-              }, 750);
+              }, 1000);
           });
       });
    });
