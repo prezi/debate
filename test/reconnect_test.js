@@ -6,6 +6,8 @@ var browser = require("testium").getBrowser(),
     cp = require('child_process'),
     exec = cp.exec;
 
+var config = require('./config');
+
 describe('reconnect behavior', function() {
     var websocketChild;
     // if child process created, it should always be killed at the end
@@ -24,7 +26,7 @@ describe('reconnect behavior', function() {
     });
 
     beforeEach(function(done) {
-      websocketChild = cp.spawn('node', ['/Users/elise/Dropbox/code/debate/websocket.js']);
+      websocketChild = cp.spawn(config.websocketServer, config.websocketArgs);
       setTimeout(done, 500);
     });
 
@@ -53,7 +55,7 @@ describe('reconnect behavior', function() {
           websocketChild.kill();
           websocketChild.on('close', function(code, signal) {
               // re-spawn
-              websocketChild = cp.spawn('node', ['/Users/elise/Dropbox/code/debate/websocket.js']);
+              websocketChild = cp.spawn(config.websocketServer, config.websocketArgs);
               setTimeout(function() {
                   browser.assert.elementHasText("#status", "connected")
                   done();
