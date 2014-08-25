@@ -1,6 +1,7 @@
+var path = require("path");
 var config = {};
 
 config.websocketServer = 'node'
-config.websocketArgs = ['/Users/elise/Dropbox/code/debate/websocket.js']
+config.websocketArgs = [path.resolve(__dirname, '../websocket.js')]
 
 module.exports = config
