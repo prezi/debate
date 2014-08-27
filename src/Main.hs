@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 import           Control.Monad      (forever)
 import           Control.Monad.Trans (liftIO)
 import           System.Random (randomRIO)
@@ -40,8 +40,8 @@ application pending = do
     echo connection
 
 echo connection = forever $ do
-    msg <- (WS.receiveData connection) :: IO T.Text
-    WS.sendTextData connection $ msg
+    msg <- WS.receiveData connection :: IO T.Text
+    WS.sendTextData connection msg
 
 
 headerJSON :: H.ResponseHeaders

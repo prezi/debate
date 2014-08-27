@@ -27,3 +27,7 @@ start selenium server
 run tests
 
     node test/test.js
+
+## Note Haskell tests
+
+at the time of writing stable happy doesn't play well with GHC 7.8.  Install the latest version of happy on your system for hlint to install.
