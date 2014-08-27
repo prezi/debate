@@ -27,9 +27,7 @@ executable debate
                      , wai-app-static
                      , wai-websockets
                      , warp
-                     , bytestring
                      , http-types
-                     , case-insensitive
                      , blaze-builder
                      , mtl
                      , random

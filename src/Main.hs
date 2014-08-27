@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
 import           Control.Monad      (forever)
 import           Control.Monad.Trans (liftIO)
 import           System.Random (randomRIO)
@@ -9,11 +9,9 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WebSockets as WaiWS
 import qualified Network.Wai.Application.Static as Static
-import Blaze.ByteString.Builder (copyByteString, fromLazyByteString)
+import Blaze.ByteString.Builder (fromLazyByteString)
 
-import qualified Data.ByteString.Char8 as B
 import qualified Data.Text          as T
-import qualified Data.CaseInsensitive as CI ( mk )
 
 import Data.Aeson
 
@@ -26,13 +24,13 @@ main = do
 httpApplication :: Wai.Application
 httpApplication req respond = do ent <- liftIO $ randomRIO ((0, 4294967295) :: (Int, Int))
                                  respond $ Wai.responseBuilder status200 
-                                        [ (CI.mk (B.pack "Content-Type"), B.pack "application/json") 
-                                        , (CI.mk (B.pack "Access-Control-Allow-Credentials"), B.pack "true")
-                                        , (CI.mk (B.pack "Access-Control-Allow-Origin"), B.pack "http://0.0.0.0:9999") ] -- to configure
-                                      $ fromLazyByteString $ encode         [ (T.pack "websocket")     .= True
-                                                                            , (T.pack "cookie_needed") .= True
-                                                                            , (T.pack "origins")       .= ["*:*"]
-                                                                            , (T.pack "entropy")       .= ent
+                                        [ ("Content-Type", "application/json") 
+                                        , ("Access-Control-Allow-Credentials", "true")
+                                        , ("Access-Control-Allow-Origin", "http://0.0.0.0:9999") ] -- to configure
+                                      $ fromLazyByteString $ encode         [ "websocket"     .= True
+                                                                            , "cookie_needed" .= True
+                                                                            , "origins"       .= ["*:*" :: T.Text]
+                                                                            , "entropy"       .= ent
                                                                             ]
 
 application pending = do
