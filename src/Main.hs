@@ -17,17 +17,13 @@ import qualified Data.CaseInsensitive as CI ( mk )
 
 import Data.Aeson
 
-import Debug.Trace
-
 
 -- info query should return something sensible, and then move on to websocket
 main = do
     let settings = Warp.setPort 8888 Warp.defaultSettings
     Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions application httpApplication
 
---httpApplication :: Wai.Application
-
-httpApplication a b | trace ("http " ++ show (Wai.requestHeaders a) ++ " " ++  show (Wai.pathInfo a)) False = undefined
+httpApplication :: Wai.Application
 httpApplication req respond = do ent <- liftIO $ randomRIO ((0, 4294967295) :: (Int, Int))
                                  respond $ Wai.responseBuilder status200 
                                         [ (CI.mk (B.pack "Content-Type"), B.pack "application/json") 
