@@ -10,7 +10,6 @@ import qualified Network.HTTP.Types.Header   as H
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WebSockets as WaiWS
-import qualified Network.Wai.Application.Static as Static
 import Blaze.ByteString.Builder (fromLazyByteString)
 
 import qualified Data.Text          as T

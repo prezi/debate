@@ -25,7 +25,6 @@ executable debate
                      , bytestring
                      , aeson
                      , wai
-                     , wai-app-static
                      , wai-websockets
                      , warp
                      , http-types
