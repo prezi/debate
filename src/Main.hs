@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Monad      (forever)
 import           Control.Monad.Trans (liftIO)
+import           Control.Concurrent (forkIO, threadDelay)
 import           System.Random (randomRIO)
 import           Data.Maybe (fromMaybe)
 
@@ -36,12 +37,22 @@ httpApplication req respond = do ent <- liftIO $ randomRIO ((0, 4294967295) :: (
 
 application pending = do
     connection <- WS.acceptRequest pending
+    WS.sendTextData connection (T.pack "o") -- sockjs client expects an "o" message to open socket
+    _ <- forkIO $ heartbeat connection
     echo connection
 
+heartbeat connection = do
+    WS.sendTextData connection (T.pack "h")
+    threadDelay 25000 -- default in sockjs js implementation
+    heartbeat connection
+
+-- protocol framing
+-- http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
+-- todo implement close message (receive c[code, reason])
 echo connection = forever $ do
     msg <- WS.receiveData connection :: IO T.Text
-    WS.sendTextData connection msg
-
+    putStrLn $ show msg
+    WS.sendTextData connection $ T.concat ["a", msg] -- msg already in an encoded array at reception
 
 headerJSON :: H.ResponseHeaders
 headerJSON = [("Content-Type", "application/json; charset=UTF-8")]
