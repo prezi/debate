@@ -59,7 +59,7 @@
             };
 
             var reconnect = function() {
-                var sockjs = new SockJS(sockjs_url);
+                var sockjs = new SockJS(sockjs_url, undefined, {protocols_whitelist: ['websocket', 'xhr-polling'], debug: true});
 
                 sockjs.onopen    = function()  {print('[*] open', sockjs.protocol); statusbox.text('reconnected');};
                 sockjs.onmessage = function(e) {print('[.] message', e.data);};
