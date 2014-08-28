@@ -20,22 +20,21 @@ main =
     testGroup "xhr-polling" [ testCase "open connection" caseXHRtest ]
   ]
 
+-- helpers
 echoApp connection = forever $ do
     msg <- receiveData connection :: IO T.Text
     sendTextData connection msg
 
+get path = request $ setPath defaultRequest path
+post path = request $ setPath (defaultRequest {requestMethod = "POST"}) path
+
+-- test cases
 caseInfoRequest = flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp) $ do
-    infoResponse <- request defaultRequest
-                { requestMethod = "GET"
-                , rawPathInfo = "/foo/info"
-                }
+    infoResponse <- get "/foo/info"
     assertStatus 200 infoResponse
     assertHeader "Content-type" "application/json; charset=UTF-8" infoResponse
 
 caseXHRtest = flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp) $ do
-    openResponse <- request defaultRequest
-                { requestMethod = "POST"
-                , rawPathInfo = "/foo/000/session/xhr"
-                }
+    openResponse <- post "/foo/000/aeiou/xhr"
     assertStatus 200 openResponse
     assertBody "o\n" openResponse
