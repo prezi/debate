@@ -29,7 +29,8 @@ import qualified Data.ByteString    as B
 import Data.Aeson
 
 -- TODO add prefix to config
-data Config = Config { port :: Int }
+data Config = Config { port :: Int,
+                       prefix :: T.Text }
 
 data SockJSMessage = SockJSMessage [T.Text]
 
