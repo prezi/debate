@@ -36,7 +36,7 @@ data SockJSMessage = SockJSMessage [T.Text]
 
 runServer configuration application = do
     let settings = Warp.setPort (port configuration) Warp.defaultSettings
-    Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions (wsApplication application) (httpApplication application)
+    Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions (wsApplication application) (httpApplication configuration application)
 
 -- TODO: add routing for '/info', '/greeting', and all xhr polling
 -- the websocket or xhr-polling transport should go over 
@@ -44,8 +44,9 @@ runServer configuration application = do
 -- add '/websocket' for websocket transport
 -- add '/xhr' for xhr-polling
 -- todo routing on prefix too (threading)
-httpApplication :: (WS.Connection -> IO ()) -> Wai.Application
-httpApplication application req respond = do ent <- liftIO $ randomRIO ((0, 4294967295) :: (Int, Int))
+httpApplication :: Config -> (WS.Connection -> IO ()) -> Wai.Application
+httpApplication configuration application req respond = do
+                                             ent <- liftIO $ randomRIO ((0, 4294967295) :: (Int, Int))
                                              respond $ Wai.responseBuilder H.status200 
                                                     (concat [headerJSON, headerNotCached, headerCORS "*" req])
                                                     $ fromLazyByteString $ encode         [ "websocket"     .= True
