@@ -46,14 +46,22 @@ runServer configuration application = do
 -- todo routing on prefix too (threading)
 httpApplication :: Config -> (WS.Connection -> IO ()) -> Wai.Application
 httpApplication configuration application req respond = do
-                                             ent <- liftIO $ randomRIO ((0, 4294967295) :: (Int, Int))
-                                             respond $ Wai.responseBuilder H.status200 
-                                                    (concat [headerJSON, headerNotCached, headerCORS "*" req])
-                                                    $ fromLazyByteString $ encode         [ "websocket"     .= True
-                                                                                        , "cookie_needed" .= False
-                                                                                        , "origins"       .= ["*:*" :: T.Text]
-                                                                                        , "entropy"       .= ent
-                                                                                        ]
+                                 let pathPrefix = prefix configuration
+                                 case Wai.pathInfo req of
+                                   [pathPrefix, "info"] -> responseInfo req respond
+                                   path -> do print path
+                                              respond $ Wai.responseLBS H.status404 [("Content-Type", "text/plain")] "Not found"
+
+
+responseInfo req respond = do
+                ent <- liftIO $ randomRIO ((0, 4294967295) :: (Int, Int))
+                respond $ Wai.responseBuilder H.status200 
+                    (concat [headerJSON, headerNotCached, headerCORS "*" req])
+                    $ fromLazyByteString $ encode         [ "websocket"     .= True
+                                                        , "cookie_needed" .= False
+                                                        , "origins"       .= ["*:*" :: T.Text]
+                                                        , "entropy"       .= ent
+                                                        ]
 
 -- protocol framing see http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
 wsApplication application pending = do
