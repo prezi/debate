@@ -15,11 +15,9 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
-executable debate
-  main-is:             Main.hs
-  -- other-modules:
-  -- other-extensions:
-  build-depends:       base >=4.7 && <4.8
+library
+  exposed-modules:   Debate.Server
+  build-depends:       base >=4.6 && <4.8
                      , websockets
                      , text
                      , bytestring
@@ -31,6 +29,28 @@ executable debate
                      , blaze-builder
                      , mtl
                      , random
+  ghc-options:       -Wall -threaded
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
+
+executable debate-example
+  main-is:             Main.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.6 && <4.8
+                     , websockets
+                     , text
+                     , bytestring
+                     , aeson
+                     , wai
+                     , wai-websockets
+                     , warp
+                     , http-types
+                     , blaze-builder
+                     , mtl
+                     , random
+                     , debate
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -38,12 +58,16 @@ test-suite hunit
   type: exitcode-stdio-1.0
   main-is: Test.hs
   hs-source-dirs: test/hunit
-  build-depends:
-    base,
-    HUnit >= 1.2,
-    test-framework       >= 0.6,
-    test-framework-hunit >= 0.2,
-    test-framework-th    >= 0.2
+  build-depends: base
+               , HUnit >= 1.2
+               , test-framework       >= 0.6
+               , test-framework-hunit >= 0.2
+               , test-framework-th    >= 0.2
+               , debate
+               , wai
+               , wai-extra
+               , text
+  default-language:    Haskell2010
 
 test-suite hlint
   type: exitcode-stdio-1.0
@@ -53,3 +77,4 @@ test-suite hlint
   build-depends:
     base,
     hlint >= 1.7
+  default-language:    Haskell2010
