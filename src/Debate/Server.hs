@@ -49,6 +49,8 @@ httpApplication configuration application req respond = do
                                  let pathPrefix = prefix configuration
                                  case Wai.pathInfo req of
                                    [pathPrefix, "info"] -> responseInfo req respond
+                                   [pathPrefix, serverId, sessionId, "xhr"] -> openXHR req respond
+                                   [pathPrefix, serverId, sessionId, "xhr_send"] -> receiveXHR req respond
                                    path -> do print path
                                               respond $ Wai.responseLBS H.status404 [("Content-Type", "text/plain")] "Not found"
 
@@ -62,6 +64,10 @@ responseInfo req respond = do
                                                         , "origins"       .= ["*:*" :: T.Text]
                                                         , "entropy"       .= ent
                                                         ]
+
+openXHR req respond = respond $ Wai.responseLBS H.status200 [] "o\n"
+
+receiveXHR req respond = respond $ Wai.responseLBS H.status204 [] ""
 
 -- protocol framing see http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
 wsApplication application pending = do
