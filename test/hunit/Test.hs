@@ -4,18 +4,19 @@ import Test.HUnit hiding (test)
 import Test.Framework.Providers.HUnit
 import Test.Framework.TH
 import Test.Framework
-import Network.Wai.Test
+--import Network.Wai.Test
 
-import Network.Wai
+--import Network.Wai
 
 
-import qualified Data.Map as Map
+--import qualified Data.Map as Map
 
 main =
   defaultMain [
-    testGroup "xhr-polling" [ testCase "open connection" testXHRtest ]
+    --testGroup "xhr-polling" [ testCase "open connection" testXHRtest ]
   ]
 
+{-
 
 testXHRtest = do let url = "/test/test/xhr"
                  flip runSession jsonpApp $ do
@@ -28,7 +29,6 @@ testXHRtest = do let url = "/test/test/xhr"
                  
 
 
-/*
 testdata = "A unicode string\x2122"
 url = "/clipboard/..."
 
@@ -46,4 +46,4 @@ testXHRtest = do
       bodyEquals $ map (chr . fromIntegral)
                        (B.unpack $ encodeUtf8 testdata)
       statusIs 200
-*/
+-}
