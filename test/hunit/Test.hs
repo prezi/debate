@@ -17,9 +17,11 @@ import qualified Data.ByteString.Lazy as L
 
 main =
   defaultMain [
-    testGroup "basic sockjs" [ testCase "info request" caseInfoRequest ],
-    testGroup "xhr-polling" [ testCase "open connection" caseXHRopen,
-                              testCase "send message" caseXHRSendMessage ]
+    testGroup "basic sockjs" [ testCase "info request" caseInfoRequest ]
+  , testGroup "xhr-polling" [ testCase "open connection" caseXHRopen
+                            , testCase "receive message" caseXHRReceiveMessage
+                            , testCase "receive and send message" caseXHRReceiveSendMessage
+                            , testCase "try to send message on unopened session" caseXHRBadMessage ]
   ]
 
 -- helpers
@@ -42,8 +44,18 @@ caseXHRopen = flip runSession (httpApplication Config {port = 8881, prefix = "/f
     assertStatus 200 openResponse
     assertBody "o\n" openResponse
 
-caseXHRSendMessage = flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp) $ do
+caseXHRReceiveMessage = flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp) $ do
     -- prerequisite: open session
     _ <- post "/foo/000/aeiou/xhr" []
     sendResponse <- post "/foo/000/aeiou/xhr_send" [("body", Just "a[\"test\"]")]
     assertStatus 204 sendResponse
+
+caseXHRReceiveSendMessage = flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp) $ do
+    -- prerequisite: open session
+    _ <- post "/foo/000/aeiou/xhr" []
+    sendResponse <- post "/foo/000/aeiou/xhr_send" [("body", Just "a[\"test\"]")]
+    -- test app is echo so we receive message back
+    receiveResponse <- post "/foo/000/aeiou/xhr" []
+    assertBody "a[\"test\"]" receiveResponse
+
+caseXHRBadMessage = undefined
