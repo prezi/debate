@@ -10,7 +10,7 @@ module Debate.Server
 )
 where
 
-import           Control.Monad.Trans (lift)
+import           Control.Monad (liftM)
 import           Control.Monad.Trans (liftIO)
 import           Control.Concurrent (forkIO, threadDelay)
 import           Control.Concurrent.STM.TVar
@@ -26,11 +26,11 @@ import Network.Wai.Parse (parseRequestBody, lbsBackEnd)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WebSockets as WaiWS
 import Blaze.ByteString.Builder (fromLazyByteString)
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 
 import qualified Data.Text          as T
 import qualified Data.ByteString    as B
-
+import qualified Data.ByteString.Lazy as L (fromChunks)
 import Data.Aeson
 import qualified Data.Map.Strict as Map
 
@@ -45,6 +45,17 @@ data Client = Client
 data ServerState = ServerState {
                      clients :: TVar (Map.Map SessionId Client)
                    }
+
+data Frame = OpenFrame
+           | MsgFrame [T.Text]
+           | HeartbeatFrame
+           | CloseFrame
+
+
+toText OpenFrame =  "o\n"
+toText (MsgFrame msgs) = T.concat ["a[\"", T.intercalate "\",\""  msgs, "\"]\n"]
+toText HeartbeatFrame = "h\n"
+toText CloseFrame = "c\n"
 
 runServer configuration application = do
     let settings = Warp.setPort (port configuration) Warp.defaultSettings
@@ -79,7 +90,7 @@ responseInfo req respond = do
                                                         , "entropy"       .= ent
                                                         ]
 
-openXHR req respond = respond $ Wai.responseLBS H.status200 [] "o\n"
+openXHR req respond = respond $ Wai.responseLBS H.status200 [] $ L.fromChunks [encodeUtf8 $ toText OpenFrame]
 
 processXHR sessionId state req respond = do (params, _) <- parseRequestBody lbsBackEnd req
                                             let msg = maybe "" (msgFromFrame . decodeUtf8) (lookup "body" params) -- todo error handling on empty body
@@ -92,11 +103,11 @@ savePendingMsg ServerState{..} sessionId msg = do
                        newMap = case session of
                             Nothing -> Map.insert sessionId (newClient sessionId msg) clientMap
                             Just client -> Map.adjust (addPendingMessage msg) sessionId clientMap
-                   writeTVar clients $ newMap
+                   writeTVar clients newMap
 
 newClient sessionId msg = Client {sessionId = sessionId, pendingMessages = [msg]}
 
-addPendingMessage msg client = Client { sessionId = sessionId client, pendingMessages = (pendingMessages client) ++ [msg] }
+addPendingMessage msg client = Client { sessionId = sessionId client, pendingMessages = pendingMessages client ++ [msg] }
 
 -- protocol framing see http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
 wsApplication application state pending = do
@@ -106,12 +117,12 @@ wsApplication application state pending = do
     application connection
 
 heartbeat connection = do
-    WS.sendTextData connection (T.pack "h")
+    WS.sendTextData connection (toText HeartbeatFrame)
     threadDelay 25000 -- default in sockjs js implementation
     heartbeat connection
 
 -- TODO make this dependent on current transport state (websocket or xhr)
-receiveData connection = (WS.receiveData connection :: IO T.Text) >>= (return . msgFromFrame)
+receiveData connection = liftM msgFromFrame (WS.receiveData connection :: IO T.Text)
 sendTextData connection msg =
     WS.sendTextData connection $ T.concat ["a", msgToFrame msg] -- msg already in an encoded array at reception
 
@@ -137,6 +148,6 @@ headerCORS def req = allowHeaders ++ allowOrigin ++ allowCredentials
                    _      -> [("Access-Control-Allow-Origin", origin)]
           origin = fromMaybe def . lookup "Origin" $ Wai.requestHeaders req
 
-msgFromFrame msg = (T.splitOn "\"" msg)!!1
+msgFromFrame msg = T.splitOn "\"" msg !! 1
 
-msgToFrame msg = T.concat ["[\"", msg, "\"]"]
+msgToFrame msg = toText $ MsgFrame [msg]
