@@ -23,14 +23,14 @@ main =
     testGroup "basic sockjs" [ testCase "info request" caseInfoRequest ]
   , testGroup "xhr-polling" [ testCase "open connection" caseXHRopen
                             , testCase "receive message" caseXHRReceiveMessage
-                            , testCase "receive and send message" caseXHRReceiveSendMessage
-                            , testCase "try to send message on unopened session" caseXHRBadMessage ]
+                            , testCase "receive and send message" caseXHRReceiveSendMessage ]
+                            --, testCase "try to send message on unopened session" caseXHRBadMessage ]
   ]
 
 -- helpers
-echoApp connection = forever $ do
-    msg <- receiveData connection :: IO T.Text
-    sendTextData connection msg
+echoApp receiveData sendTextData = forever $ do
+    msg <- receiveData
+    sendTextData msg
 
 get path = srequest $ SRequest (setPath defaultRequest path) ""
 post path content = srequest $ SRequest ((setPath defaultRequest path) {requestMethod = "POST", requestHeaders = [("Content-Type","application/x-www-form-urlencoded")]}) (L.fromChunks [content])
@@ -69,6 +69,6 @@ caseXHRReceiveSendMessage = do
         sendResponse <- post "/foo/000/aeiou/xhr_send" "body=a[\"test\"]"
         -- test app is echo so we receive message back
         receiveResponse <- post "/foo/000/aeiou/xhr" ""
-        assertBody "a[\"test\"]" receiveResponse
+        assertBody "a[\"test\"]\n" receiveResponse
 
-caseXHRBadMessage = undefined
+--caseXHRBadMessage = undefined
