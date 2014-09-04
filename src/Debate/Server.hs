@@ -40,8 +40,8 @@ data Config = Config { port :: Int,
 type SessionId = T.Text
 data Client = Client
   { sessionID :: SessionId
-  , sendChan :: TChan T.Text
   , receiveChan :: TChan T.Text
+  , pendingMessages :: [T.Text]
   }
 data ServerState = ServerState {
     clients :: TVar (Map.Map SessionId Client)
@@ -92,40 +92,63 @@ responseInfo req respond = do
                 ent <- liftIO $ randomRIO ((0, 4294967295) :: (Int, Int))
                 respond $ Wai.responseBuilder H.status200 
                     (concat [headerJSON, headerNotCached, headerCORS "*" req])
-                    $ fromLazyByteString $ encode         [ "websocket"     .= True
-                                                        , "cookie_needed" .= False
-                                                        , "origins"       .= ["*:*" :: T.Text]
-                                                        , "entropy"       .= ent
-                                                        ]
+                    $ fromLazyByteString $ encode [ "websocket"     .= True
+                                                   , "cookie_needed" .= False
+                                                   , "origins"       .= ["*:*" :: T.Text]
+                                                   , "entropy"       .= ent
+                                                   ]
 
 pollXHR application sessionId state@ServerState{..} req respond = do
-                   clientMap <- atomically $ readTVar clients
+                   clientMap <- readTVarIO clients
                    if Map.member sessionId clientMap
                     then pendingMessagesXHR sessionId state req respond
                     else openXHR application state sessionId req respond -- new session opened
 
 openXHR application state@ServerState{..} sessionId req respond = do 
-                   clientMap <- atomically $ readTVar clients
-                   sendChan <- atomically newTChan
+                   clientMap <- readTVarIO clients
                    receiveChan <- atomically newTChan
-                   _ <- forkIO (atomically $ application (readTChan receiveChan) (writeTChan sendChan))
-                   atomically $ writeTVar clients $ Map.insert sessionId Client { sessionID = sessionId, sendChan = sendChan, receiveChan = receiveChan } clientMap
+                   _ <- forkIO $ runApplication application sessionId state receiveChan
+                   atomically $ writeTVar clients $ Map.insert sessionId Client { sessionID = sessionId, pendingMessages = [], receiveChan = receiveChan } clientMap
                    respond $ Wai.responseLBS H.status200 [] $ L.fromChunks [encodeUtf8 $ toText OpenFrame]
 
 pendingMessagesXHR sessionId state@ServerState{..} req respond = do
-                   clientMap <- atomically $ readTVar clients
+                   clientMap <- readTVarIO clients
                    let client = fromJust $ Map.lookup sessionId clientMap
                    -- read message
-                   msg <- atomically $ readTChan (sendChan client) 
-                   respond $ Wai.responseLBS H.status200 [] $ L.fromChunks [encodeUtf8 $ toText (MsgFrame [msg])]
+                   putStrLn "read things"
+                   msg <- getPendingMessages sessionId state
+                   putStrLn "after read things"
+                   respond $ Wai.responseLBS H.status200 [] $ L.fromChunks [encodeUtf8 $ toText (MsgFrame msg)]
 
 processXHR sessionId ServerState{..} req respond = do 
                    (params, _) <- parseRequestBody lbsBackEnd req
                    let msg = maybe "" (msgFromFrame . decodeUtf8) (lookup "body" params) -- todo error handling on empty body
-                   clientMap <- atomically $ readTVar clients
+                   clientMap <- readTVarIO clients
                    let client = fromJust $ Map.lookup sessionId clientMap
+                   putStrLn "write things"
                    atomically $ writeTChan (receiveChan client) msg -- msg to application
+                   putStrLn "write things"
                    respond $ Wai.responseLBS H.status204 [] ""
+
+runApplication application sessionId state receive = do
+    atomically $ application (readTChan receive) sendMessage
+    where sendMessage = addPendingMessages sessionId state
+
+-- add msg to TVar as a queue
+addPendingMessages sessionId ServerState{..} msg = do
+    clientMap <- readTVar clients
+    writeTVar clients $ Map.adjust (addPendingMessage msg) sessionId clientMap
+
+addPendingMessage msg client = Client { sessionID = sessionID client, receiveChan = receiveChan client, pendingMessages = pendingMessages client ++ [msg] }
+cleanPendingMessages client = Client { sessionID = sessionID client, receiveChan = receiveChan client, pendingMessages = [] }
+
+-- get pending messages and empty out the TVar
+getPendingMessages sessionId state@ServerState{..} = do
+    clientMap <- readTVarIO clients
+    let client = fromJust $ Map.lookup sessionId clientMap
+        pending = pendingMessages client
+    atomically $ writeTVar clients $ Map.adjust cleanPendingMessages sessionId clientMap
+    return pending
 
 -- protocol framing see http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
 wsApplication application state pending@WS.PendingConnection {pendingRequest = WS.RequestHead path headers _} = do
@@ -133,18 +156,17 @@ wsApplication application state pending@WS.PendingConnection {pendingRequest = W
     let (pathInfo, query) = H.decodePath path
     print pathInfo
 
-    send <- atomically newTChan
     receive <- atomically newTChan
 
     connection <- WS.acceptRequest pending
     WS.sendTextData connection (T.pack "o") -- sockjs client expects an "o" message to open socket
     _ <- forkIO $ heartbeat connection
-    _ <- forkIO $ atomically $ application (readTChan receive) (writeTChan send)
+    _ <- forkIO $ runApplication application "randomsessionId" state receive
     _ <- forkIO $ forever $ do
        msg <- WS.receiveData connection :: IO T.Text
        atomically $ writeTChan receive $ msgFromFrame msg
     forever $ do
-       msg <- atomically $ readTChan send
+       msg <- getPendingMessages "randomsessionId" state
        WS.sendTextData connection $ msgToFrame msg
 
 -- TODO make this dependent on current transport state (websocket or xhr)
@@ -184,4 +206,4 @@ headerCORS def req = allowHeaders ++ allowOrigin ++ allowCredentials
 
 msgFromFrame msg = T.splitOn "\"" msg !! 1
 
-msgToFrame msg = toText $ MsgFrame [msg]
+msgToFrame msgs = toText $ MsgFrame msgs
