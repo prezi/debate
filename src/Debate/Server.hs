@@ -31,12 +31,11 @@ import qualified Data.ByteString    as B
 import qualified Data.ByteString.Lazy as L (fromChunks)
 import           Data.Aeson
 import qualified Data.Map.Strict as Map
+import           Data.List ((\\))
 
 import           System.Timeout
 
 import           Debate.Types
-
-import Debug.Trace
 
 -- TODO close and cleanup
 -- TODO error handling
@@ -57,7 +56,7 @@ httpApplication configuration application state req respond = do
                                  let (pathPrefix, _) = H.decodePath $ encodeUtf8 $ prefix configuration -- can be more than one /
                                      path = Wai.pathInfo req
                                  if matchPrefix pathPrefix path
-                                   then routing path application state req respond
+                                   then routing (path \\ pathPrefix) application state req respond
                                    else response404 respond
 
 matchPrefix :: [T.Text] -> [T.Text] -> Bool
@@ -67,9 +66,9 @@ matchPrefix (x:_) [] = False
 
 routing pathInfo application state req respond = 
                     case pathInfo of
-                        [_, "info"] -> responseInfo req respond
-                        [_, _, sessionId, "xhr_send"] -> processXHR sessionId state req respond
-                        [_, _, sessionId, "xhr"] -> pollXHR application sessionId state req respond
+                        ["info"] -> responseInfo req respond
+                        [_, sessionId, "xhr_send"] -> processXHR sessionId state req respond
+                        [_, sessionId, "xhr"] -> pollXHR application sessionId state req respond
                         path -> do print path
                                    response404 respond
 
