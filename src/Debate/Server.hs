@@ -42,25 +42,30 @@ data Config = Config { port :: Int,
                        prefix :: T.Text }
 
 type SessionId = T.Text
+
 data Client = Client
   { sessionID :: SessionId
   , receiveChan :: TChan T.Text
   , pendingMessages :: TMVar [T.Text]
   }
+
 data ServerState = ServerState {
     clients :: TVar (Map.Map SessionId Client)
   }
 
-data Frame = OpenFrame
-           | MsgFrame [T.Text]
-           | HeartbeatFrame
-           | CloseFrame
+data Frame = ControlFrame ControlFrame
+           | DataFrame [T.Text]
+
+data ControlFrame = OpenFrame
+                  | HeartbeatFrame
+                  | CloseFrame
 
 
-toText OpenFrame =  "o\n"
-toText (MsgFrame msgs) = T.concat ["a[\"", T.intercalate "\",\""  msgs, "\"]\n"]
-toText HeartbeatFrame = "h\n"
-toText CloseFrame = "c\n"
+frameToText :: Frame -> T.Text
+frameToText (ControlFrame OpenFrame) =  "o\n"
+frameToText (DataFrame msgs) = T.concat ["a[\"", T.intercalate "\",\""  msgs, "\"]\n"]
+frameToText (ControlFrame HeartbeatFrame) = "h\n"
+frameToText (ControlFrame CloseFrame) = "c\n"
 
 newServerState :: IO ServerState
 newServerState = do
@@ -112,7 +117,7 @@ openXHR application state@ServerState{..} sessionId req respond = do
                    addClient state sessionId receiveChan
                    _ <- forkIO $ runApplication application sessionId state receiveChan
                    respond $ Wai.responseLBS H.status200
-                      (concat [headerJSON, headerNotCached, headerCORS "*" req]) $ L.fromChunks [encodeUtf8 $ toText OpenFrame]
+                      (concat [headerJSON, headerNotCached, headerCORS "*" req]) $ L.fromChunks [encodeUtf8 $ frameToText (ControlFrame OpenFrame)]
 
 addClient state@ServerState{..} sessionId receiveChan = atomically $ do
                    clientMap <- readTVar clients
@@ -134,7 +139,7 @@ emptyResponse respond req = respond $ Wai.responseLBS H.status200
                                (concat [headerJSON, headerNotCached, headerCORS "*" req]) ""
 
 msgResponse respond req msg = respond $ Wai.responseLBS H.status200  
-                                 (concat [headerJSON, headerNotCached, headerCORS "*" req]) $ L.fromChunks [encodeUtf8 $ toText (MsgFrame msg)]
+                                 (concat [headerJSON, headerNotCached, headerCORS "*" req]) $ L.fromChunks [encodeUtf8 $ frameToText (DataFrame msg)]
 
 processXHR sessionId ServerState{..} req respond = do 
                    body <- Wai.requestBody req
@@ -193,7 +198,7 @@ sendLoop state connection =
 -- The session must time out after 5 seconds of not having a receiving connection. The server must send a heartbeat frame every 25 seconds. The heartbeat frame contains a single h character. This delay may be configurable.
 -- TODO timeout of session and removal of data from server state
 heartbeat connection = do
-    WS.sendTextData connection (toText HeartbeatFrame)
+    WS.sendTextData connection (frameToText $ ControlFrame HeartbeatFrame)
     threadDelay 25000 -- default in sockjs js implementation
     heartbeat connection
 
@@ -223,4 +228,4 @@ headerCORS def req = allowHeaders ++ allowOrigin ++ allowCredentials
 
 msgFromFrame msg = T.splitOn "\"" msg !! 1
 
-msgToFrame msgs = toText $ MsgFrame msgs
+msgToFrame msgs = frameToText $ DataFrame msgs
