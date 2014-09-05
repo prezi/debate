@@ -2,4 +2,5 @@
 
 npm install
 cabal install
+cabal test
 npm test
