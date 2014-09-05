@@ -13,6 +13,7 @@ import           Control.Monad.Trans (liftIO)
 import           Control.Concurrent (forkIO, threadDelay)
 import           Control.Concurrent.STM.TVar
 import           Control.Concurrent.STM.TChan
+import           Control.Concurrent.Async
 import           GHC.Conc.Sync (atomically)
 import           System.Random (randomRIO)
 import           Data.Maybe (fromMaybe, fromJust)
@@ -54,6 +55,7 @@ data Frame = OpenFrame
 
 
 toText OpenFrame =  "o\n"
+toText (MsgFrame []) = ""
 toText (MsgFrame msgs) = T.concat ["a[\"", T.intercalate "\",\""  msgs, "\"]\n"]
 toText HeartbeatFrame = "h\n"
 toText CloseFrame = "c\n"
@@ -105,19 +107,20 @@ pollXHR application sessionId state@ServerState{..} req respond = do
                     else openXHR application state sessionId req respond -- new session opened
 
 openXHR application state@ServerState{..} sessionId req respond = do 
-                   clientMap <- readTVarIO clients
                    receiveChan <- atomically newTChan
+                   addClient state sessionId receiveChan
                    _ <- forkIO $ runApplication application sessionId state receiveChan
-                   atomically $ writeTVar clients $ Map.insert sessionId Client { sessionID = sessionId, pendingMessages = [], receiveChan = receiveChan } clientMap
                    respond $ Wai.responseLBS H.status200 [] $ L.fromChunks [encodeUtf8 $ toText OpenFrame]
+
+addClient state@ServerState{..} sessionId receiveChan = do
+                   clientMap <- readTVarIO clients
+                   atomically $ writeTVar clients $ Map.insert sessionId Client { sessionID = sessionId, pendingMessages = [], receiveChan = receiveChan } clientMap
 
 pendingMessagesXHR sessionId state@ServerState{..} req respond = do
                    clientMap <- readTVarIO clients
                    let client = fromJust $ Map.lookup sessionId clientMap
                    -- read message
-                   putStrLn "read things"
                    msg <- getPendingMessages sessionId state
-                   putStrLn "after read things"
                    respond $ Wai.responseLBS H.status200 [] $ L.fromChunks [encodeUtf8 $ toText (MsgFrame msg)]
 
 processXHR sessionId ServerState{..} req respond = do 
@@ -125,17 +128,15 @@ processXHR sessionId ServerState{..} req respond = do
                    let msg = maybe "" (msgFromFrame . decodeUtf8) (lookup "body" params) -- todo error handling on empty body
                    clientMap <- readTVarIO clients
                    let client = fromJust $ Map.lookup sessionId clientMap
-                   putStrLn "write things"
                    atomically $ writeTChan (receiveChan client) msg -- msg to application
-                   putStrLn "write things"
                    respond $ Wai.responseLBS H.status204 [] ""
 
-runApplication application sessionId state receive = do
-    atomically $ application (readTChan receive) sendMessage
+runApplication application sessionId state receive = forever $
+    application (atomically $ readTChan receive) sendMessage
     where sendMessage = addPendingMessages sessionId state
 
 -- add msg to TVar as a queue
-addPendingMessages sessionId ServerState{..} msg = do
+addPendingMessages sessionId ServerState{..} msg = atomically $ do
     clientMap <- readTVar clients
     writeTVar clients $ Map.adjust (addPendingMessage msg) sessionId clientMap
 
@@ -143,11 +144,11 @@ addPendingMessage msg client = Client { sessionID = sessionID client, receiveCha
 cleanPendingMessages client = Client { sessionID = sessionID client, receiveChan = receiveChan client, pendingMessages = [] }
 
 -- get pending messages and empty out the TVar
-getPendingMessages sessionId state@ServerState{..} = do
-    clientMap <- readTVarIO clients
+getPendingMessages sessionId state@ServerState{..} = atomically $ do
+    clientMap <- readTVar clients
     let client = fromJust $ Map.lookup sessionId clientMap
         pending = pendingMessages client
-    atomically $ writeTVar clients $ Map.adjust cleanPendingMessages sessionId clientMap
+    writeTVar clients $ Map.adjust cleanPendingMessages sessionId clientMap
     return pending
 
 -- protocol framing see http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
@@ -159,20 +160,22 @@ wsApplication application state pending@WS.PendingConnection {pendingRequest = W
     receive <- atomically newTChan
 
     connection <- WS.acceptRequest pending
+    addClient state "randomsessionId" receive
     WS.sendTextData connection (T.pack "o") -- sockjs client expects an "o" message to open socket
     _ <- forkIO $ heartbeat connection
     _ <- forkIO $ runApplication application "randomsessionId" state receive
-    _ <- forkIO $ forever $ do
+    race (receiveLoop receive connection) (sendLoop state connection)
+    return ()
+
+receiveLoop receive connection =
+    forever $ do
        msg <- WS.receiveData connection :: IO T.Text
        atomically $ writeTChan receive $ msgFromFrame msg
+sendLoop state connection =
     forever $ do
        msg <- getPendingMessages "randomsessionId" state
+       print "return msg"
        WS.sendTextData connection $ msgToFrame msg
-
--- TODO make this dependent on current transport state (websocket or xhr)
-wsReceiveData connection = liftM msgFromFrame (WS.receiveData connection :: IO T.Text)
-wsSendTextData connection msg =
-    WS.sendTextData connection $ T.concat ["a", msgToFrame msg] -- msg already in an encoded array at reception
 
 -- TODO XHR heartbeat. from sockjs-protocol:
 -- The session must time out after 5 seconds of not having a receiving connection. The server must send a heartbeat frame every 25 seconds. The heartbeat frame contains a single h character. This delay may be configurable.

@@ -32,6 +32,7 @@ library
                      , containers
                      , stm
                      , wai-extra
+                     , async
   ghc-options:       -Wall -threaded
   hs-source-dirs:      src
   default-language:    Haskell2010
@@ -57,6 +58,7 @@ executable debate-example
                      , stm
                      , debate
                      , wai-extra
+                     , async
   hs-source-dirs:      src
   default-language:    Haskell2010
 
