@@ -23,7 +23,6 @@ import qualified Network.WebSockets.Connection as WS
 import qualified Network.HTTP.Types          as H
 import qualified Network.HTTP.Types.Header   as H
 import qualified Network.Wai as Wai
-import Network.Wai.Parse (parseRequestBody, lbsBackEnd)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WebSockets as WaiWS
 import Blaze.ByteString.Builder (fromLazyByteString)
@@ -126,8 +125,8 @@ pendingMessagesXHR sessionId state@ServerState{..} req respond = do
                     (concat [headerJSON, headerNotCached, headerCORS "*" req]) $ L.fromChunks [encodeUtf8 $ toText (MsgFrame msg)]
 
 processXHR sessionId ServerState{..} req respond = do 
-                   (params, _) <- parseRequestBody lbsBackEnd req
-                   let msg = maybe "" (msgFromFrame . decodeUtf8) (lookup "body" params) -- todo error handling on empty body
+                   body <- Wai.requestBody req
+                   let msg = msgFromFrame . decodeUtf8 $ body -- todo error handling on empty body
                    clientMap <- readTVarIO clients
                    let client = fromJust $ Map.lookup sessionId clientMap
                    atomically $ writeTChan (receiveChan client) msg -- msg to application
