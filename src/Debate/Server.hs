@@ -3,6 +3,7 @@ module Debate.Server
 ( runServer
 , Config(..)
 , ServerState (..)
+, SockConnection (..)
 , httpApplication
 , wsApplication
 )
@@ -60,6 +61,10 @@ data ControlFrame = OpenFrame
                   | HeartbeatFrame
                   | CloseFrame
 
+data SockConnection = SockConnection {
+                      receiveData :: IO T.Text
+                    , sendTextData :: T.Text -> IO ()
+                    }
 
 frameToText :: Frame -> T.Text
 frameToText (ControlFrame OpenFrame) =  "o\n"
@@ -151,7 +156,7 @@ processXHR sessionId ServerState{..} req respond = do
                     (concat [headerJSON, headerNotCached, headerCORS "*" req]) ""
 
 runApplication application sessionId state receive = forever $
-    application (atomically $ readTChan receive) sendMessage
+    application SockConnection { receiveData = atomically $ readTChan receive, sendTextData = sendMessage }
     where sendMessage = addPendingMessages sessionId state
 
 -- add msg to TVar as a queue

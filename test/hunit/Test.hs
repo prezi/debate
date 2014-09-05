@@ -28,9 +28,9 @@ main =
   ]
 
 -- helpers
-echoApp receiveData sendTextData = forever $ do
-    msg <- receiveData
-    sendTextData msg
+echoApp connection = forever $ do
+    msg <- receiveData connection
+    sendTextData connection msg
 
 get path = srequest $ SRequest (setPath defaultRequest path) ""
 post path content = srequest $ SRequest ((setPath defaultRequest path) {requestMethod = "POST", requestHeaders = [("Content-Type","application/x-www-form-urlencoded")]}) (L.fromChunks [content])

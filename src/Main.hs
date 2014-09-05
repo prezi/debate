@@ -6,6 +6,6 @@ import Debate.Server
 -- info query should return something sensible, and then move on to websocket
 main = runServer Config {port = 8888, prefix = "/echo"} echo
 
-echo receiveData sendTextData = forever $ do
-    msg <- receiveData
-    sendTextData msg
+echo connection = forever $ do
+    msg <- receiveData connection
+    sendTextData connection msg
