@@ -11,8 +11,10 @@ where
 import           Control.Monad (liftM, forever)
 import           Control.Monad.Trans (liftIO)
 import           Control.Concurrent (forkIO, threadDelay)
+import           Control.Concurrent.STM
 import           Control.Concurrent.STM.TVar
 import           Control.Concurrent.STM.TChan
+import           Control.Concurrent.STM.TMVar
 import           Control.Concurrent.Async
 import           GHC.Conc.Sync (atomically)
 import           System.Random (randomRIO)
@@ -34,6 +36,8 @@ import qualified Data.ByteString.Lazy as L (fromChunks)
 import Data.Aeson
 import qualified Data.Map.Strict as Map
 
+import System.Timeout
+
 data Config = Config { port :: Int,
                        prefix :: T.Text }
 
@@ -41,7 +45,7 @@ type SessionId = T.Text
 data Client = Client
   { sessionID :: SessionId
   , receiveChan :: TChan T.Text
-  , pendingMessages :: [T.Text]
+  , pendingMessages :: TMVar [T.Text]
   }
 data ServerState = ServerState {
     clients :: TVar (Map.Map SessionId Client)
@@ -54,7 +58,6 @@ data Frame = OpenFrame
 
 
 toText OpenFrame =  "o\n"
-toText (MsgFrame []) = ""
 toText (MsgFrame msgs) = T.concat ["a[\"", T.intercalate "\",\""  msgs, "\"]\n"]
 toText HeartbeatFrame = "h\n"
 toText CloseFrame = "c\n"
@@ -81,7 +84,6 @@ runServer configuration application = do
 -- todo routing on prefix too (threading)
 httpApplication configuration application state req respond = do
                                  let pathPrefix = prefix configuration
-                                 print $ Wai.pathInfo req
                                  case Wai.pathInfo req of
                                    [pathPrefix, "info"] -> responseInfo req respond
                                    [pathPrefix, serverId, sessionId, "xhr_send"] -> processXHR sessionId state req respond
@@ -112,17 +114,27 @@ openXHR application state@ServerState{..} sessionId req respond = do
                    respond $ Wai.responseLBS H.status200
                       (concat [headerJSON, headerNotCached, headerCORS "*" req]) $ L.fromChunks [encodeUtf8 $ toText OpenFrame]
 
-addClient state@ServerState{..} sessionId receiveChan = do
-                   clientMap <- readTVarIO clients
-                   atomically $ writeTVar clients $ Map.insert sessionId Client { sessionID = sessionId, pendingMessages = [], receiveChan = receiveChan } clientMap
+addClient state@ServerState{..} sessionId receiveChan = atomically $ do
+                   clientMap <- readTVar clients
+                   emptyPending <- newEmptyTMVar
+                   writeTVar clients $ Map.insert sessionId Client { sessionID = sessionId, pendingMessages = emptyPending, receiveChan = receiveChan } clientMap
 
 pendingMessagesXHR sessionId state@ServerState{..} req respond = do
                    clientMap <- readTVarIO clients
                    let client = fromJust $ Map.lookup sessionId clientMap
-                   -- read message
-                   msg <- getPendingMessages sessionId state
-                   respond $ Wai.responseLBS H.status200  
-                    (concat [headerJSON, headerNotCached, headerCORS "*" req]) $ L.fromChunks [encodeUtf8 $ toText (MsgFrame msg)]
+                   timedResponse 5000000 (getPendingMessages sessionId state) (msgResponse respond req) (emptyResponse respond req)
+
+timedResponse delay function endedFunction timeoutFunction = do
+                   result <- timeout delay function
+                   case result of
+                     Nothing -> timeoutFunction
+                     Just msg -> endedFunction msg
+
+emptyResponse respond req = respond $ Wai.responseLBS H.status200  
+                               (concat [headerJSON, headerNotCached, headerCORS "*" req]) ""
+
+msgResponse respond req msg = respond $ Wai.responseLBS H.status200  
+                                 (concat [headerJSON, headerNotCached, headerCORS "*" req]) $ L.fromChunks [encodeUtf8 $ toText (MsgFrame msg)]
 
 processXHR sessionId ServerState{..} req respond = do 
                    body <- Wai.requestBody req
@@ -140,18 +152,17 @@ runApplication application sessionId state receive = forever $
 -- add msg to TVar as a queue
 addPendingMessages sessionId ServerState{..} msg = atomically $ do
     clientMap <- readTVar clients
-    writeTVar clients $ Map.adjust (addPendingMessage msg) sessionId clientMap
+    let client = fromJust $ Map.lookup sessionId clientMap
+    putTMVar (pendingMessages client) [msg]
+    writeTVar clients $ Map.update (\c -> Just client) sessionId clientMap
 
-addPendingMessage msg client = Client { sessionID = sessionID client, receiveChan = receiveChan client, pendingMessages = pendingMessages client ++ [msg] }
-cleanPendingMessages client = Client { sessionID = sessionID client, receiveChan = receiveChan client, pendingMessages = [] }
+-- cleanPendingMessages client = Client { sessionID = sessionID client, receiveChan = receiveChan client, pendingMessages = newTMVar }
 
 -- get pending messages and empty out the TVar
 getPendingMessages sessionId state@ServerState{..} = atomically $ do
     clientMap <- readTVar clients
     let client = fromJust $ Map.lookup sessionId clientMap
-        pending = pendingMessages client
-    writeTVar clients $ Map.adjust cleanPendingMessages sessionId clientMap
-    return pending
+    takeTMVar (pendingMessages client)
 
 -- protocol framing see http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
 wsApplication application state pending@WS.PendingConnection {pendingRequest = WS.RequestHead path headers _} = do
@@ -176,7 +187,6 @@ receiveLoop receive connection =
 sendLoop state connection =
     forever $ do
        msg <- getPendingMessages "randomsessionId" state
-       print "return msg"
        WS.sendTextData connection $ msgToFrame msg
 
 -- TODO XHR heartbeat. from sockjs-protocol:
@@ -188,6 +198,8 @@ heartbeat connection = do
     heartbeat connection
 
 -- utils
+commonHeaders req = concat [headerJSON, headerNotCached, headerCORS "*" req]
+
 headerJSON :: H.ResponseHeaders
 headerJSON = [("Content-Type", "application/json; charset=UTF-8")]
 
