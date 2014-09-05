@@ -110,7 +110,8 @@ openXHR application state@ServerState{..} sessionId req respond = do
                    receiveChan <- atomically newTChan
                    addClient state sessionId receiveChan
                    _ <- forkIO $ runApplication application sessionId state receiveChan
-                   respond $ Wai.responseLBS H.status200 [] $ L.fromChunks [encodeUtf8 $ toText OpenFrame]
+                   respond $ Wai.responseLBS H.status200
+                      (concat [headerJSON, headerNotCached, headerCORS "*" req]) $ L.fromChunks [encodeUtf8 $ toText OpenFrame]
 
 addClient state@ServerState{..} sessionId receiveChan = do
                    clientMap <- readTVarIO clients
@@ -121,7 +122,8 @@ pendingMessagesXHR sessionId state@ServerState{..} req respond = do
                    let client = fromJust $ Map.lookup sessionId clientMap
                    -- read message
                    msg <- getPendingMessages sessionId state
-                   respond $ Wai.responseLBS H.status200 [] $ L.fromChunks [encodeUtf8 $ toText (MsgFrame msg)]
+                   respond $ Wai.responseLBS H.status200  
+                    (concat [headerJSON, headerNotCached, headerCORS "*" req]) $ L.fromChunks [encodeUtf8 $ toText (MsgFrame msg)]
 
 processXHR sessionId ServerState{..} req respond = do 
                    (params, _) <- parseRequestBody lbsBackEnd req
@@ -129,7 +131,8 @@ processXHR sessionId ServerState{..} req respond = do
                    clientMap <- readTVarIO clients
                    let client = fromJust $ Map.lookup sessionId clientMap
                    atomically $ writeTChan (receiveChan client) msg -- msg to application
-                   respond $ Wai.responseLBS H.status204 [] ""
+                   respond $ Wai.responseLBS H.status204 
+                    (concat [headerJSON, headerNotCached, headerCORS "*" req]) ""
 
 runApplication application sessionId state receive = forever $
     application (atomically $ readTChan receive) sendMessage
