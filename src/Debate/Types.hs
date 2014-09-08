@@ -19,7 +19,8 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text          as T
 
 data Config = Config { port :: Int
-                     , prefix :: T.Text }
+                     , prefix :: T.Text
+                     , transportWhitelist :: [T.Text] }
 
 type SessionId = T.Text
 

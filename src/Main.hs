@@ -3,9 +3,23 @@ import           Control.Monad      (forever)
 import qualified Data.Text          as T
 import Debate.Server
 
--- info query should return something sensible, and then move on to websocket
-main = runServer Config {port = 8888, prefix = "/echo"} echo
+import System.Environment (getArgs)
+import System.Console.GetOpt
 
+main = do
+   args <- getArgs
+   let (flags, nonOpts, msgs) = getOpt RequireOrder options args
+   if Transport "xhr" `elem` flags
+     then runServer (setPrefix "/echo" (setTransportWhitelist ["xhr_polling"] defaultConfiguration)) echo
+     else runServer (setPrefix "/echo" defaultConfiguration) echo
+
+options :: [OptDescr Flag] 
+options = [ Option "t" ["transport"] (ReqArg Transport "xhr") "to limit transport whitelist to xhr" ]
+
+data Flag = Transport String
+            deriving (Show, Eq)
+
+-- Simplest possible example: echo server
 echo connection = forever $ do
     msg <- receiveData connection
     sendTextData connection msg

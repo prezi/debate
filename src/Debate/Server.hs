@@ -6,6 +6,10 @@ module Debate.Server
 , SockConnection (..)
 , httpApplication
 , wsApplication
+, defaultConfiguration
+, setPort
+, setPrefix
+, setTransportWhitelist
 )
 where
 
@@ -47,9 +51,12 @@ import           Debate.Types
 
 runServer configuration application = do
     let settings = Warp.setPort (port configuration) Warp.defaultSettings
+        transports = transportWhitelist configuration
     state <- newServerState
-    Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions (wsApplication configuration application state) (httpApplication configuration application state)
-
+    -- at the moment just provide option of limiting to xhr polling - should handle other cases (all combos of xhr polling and websockets)
+    case transports of
+      ["xhr_polling"] -> Warp.runSettings settings $ httpApplication configuration application state
+      otherwise -> Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions (wsApplication configuration application state) (httpApplication configuration application state)
 
 -- TODO: add routing for '/info', '/greeting', and all xhr polling
 -- the websocket or xhr-polling transport should go over 
@@ -73,7 +80,7 @@ routing pathInfo application state req respond =
                         ["info"] -> responseInfo req respond
                         [_, sessionId, "xhr_send"] -> processXHR sessionId state req respond
                         [_, sessionId, "xhr"] -> pollXHR application sessionId state req respond
-                        path -> do print path
+                        path -> do putStrLn $ "http route not found: " ++ show path
                                    response404 respond
 
 response404 respond = respond $ Wai.responseLBS H.status404 [("Content-Type", "text/plain")] "Not found"
@@ -230,3 +237,12 @@ msgFromFrame msg = T.splitOn "\"" msg !! 1
 
 msgToFrame :: [T.Text] -> T.Text
 msgToFrame msgs = frameToText $ DataFrame msgs
+
+-- sensible defaults?
+defaultConfiguration :: Config
+defaultConfiguration = Config { port = 8888, prefix = "/", transportWhitelist = ["websocket", "xhr_polling"] }
+
+setPort num configuration = configuration { port = num } 
+setPrefix pf configuration = configuration { prefix = pf } 
+setTransportWhitelist tl configuration = configuration { transportWhitelist = tl } 
+

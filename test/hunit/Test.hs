@@ -41,21 +41,21 @@ emptyState = do newVar <- atomically $ newTVar Map.empty
 -- test cases
 caseInfoRequest = do
     state <- emptyState
-    flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp state) $ do
+    flip runSession (httpApplication (setPort 8881 (setPrefix "/foo" defaultConfiguration)) echoApp state) $ do
         infoResponse <- get "/foo/info"
         assertStatus 200 infoResponse
         assertHeader "Content-type" "application/json; charset=UTF-8" infoResponse
 
 caseXHRopen = do
     state <- emptyState
-    flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp state) $ do
+    flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) echoApp state) $ do
         openResponse <- post "/foo/000/aeiou/xhr" ""
         assertStatus 200 openResponse
         assertBody "o\n" openResponse
 
 caseXHRReceiveMessage = do
     state <- emptyState
-    flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp state) $ do
+    flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) echoApp state) $ do
         -- prerequisite: open session
         _ <- post "/foo/000/aeiou/xhr" ""
         sendResponse <- post "/foo/000/aeiou/xhr_send" "body=a[\"test\"]"
@@ -63,7 +63,7 @@ caseXHRReceiveMessage = do
 
 caseXHRReceiveSendMessage = do
     state <- emptyState
-    flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp state) $ do
+    flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) echoApp state) $ do
         -- prerequisite: open session
         _ <- post "/foo/000/aeiou/xhr" ""
         sendResponse <- post "/foo/000/aeiou/xhr_send" "body=a[\"test\"]"
@@ -73,6 +73,6 @@ caseXHRReceiveSendMessage = do
 
 caseXHRBadMessage = do
     state <- emptyState
-    flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp state) $ do
+    flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) echoApp state) $ do
         sendResponse <- post "/foo/000/aeiou/xhr_send" "body=a[\"test\"]"
         assertStatus 404 sendResponse
