@@ -43,7 +43,7 @@ import           Debate.Types
 runServer configuration application = do
     let settings = Warp.setPort (port configuration) Warp.defaultSettings
     state <- newServerState
-    Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions (wsApplication application state) (httpApplication configuration application state)
+    Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions (wsApplication configuration application state) (httpApplication configuration application state)
 
 
 -- TODO: add routing for '/info', '/greeting', and all xhr polling
@@ -103,6 +103,7 @@ addClient ServerState{..} sessionId receiveChan = atomically $ do
                    emptyPending <- newEmptyTMVar
                    writeTVar clients $ Map.insert sessionId Client { sessionID = sessionId, pendingMessages = emptyPending, receiveChan = receiveChan } clientMap
 
+-- xhr delay 5 seconds for now - could be a parameter
 pendingMessagesXHR sessionId state@ServerState{..} req respond = timedResponse 5000000 (msgFromApplication sessionId state) (msgResponse respond req) (emptyResponse respond req)
 
 timedResponse delay function endedFunction timeoutFunction = do
@@ -152,31 +153,33 @@ addPendingMessages sessionId ServerState{..} msg = atomically $ do
     writeTVar clients $ Map.update (\_ -> Just client) sessionId clientMap
 
 -- protocol framing see http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
-wsApplication application state pending@WS.PendingConnection {pendingRequest = WS.RequestHead path _ _} = do
+wsApplication configuration application state pending@WS.PendingConnection {pendingRequest = WS.RequestHead path _ _} = do
     -- path expected: prefix - server Id - session Id - 'websocket'
     let (pathInfo, _) = H.decodePath path
-    print pathInfo
+        (pathPrefix, _) = H.decodePath $ encodeUtf8 $ prefix configuration
+    if matchPrefix pathPrefix pathInfo
+       then WS.acceptRequest pending >>= newWebsocketClient application state (pathInfo \\ pathPrefix)
+       else WS.rejectRequest pending "url not handled by this server"
 
+newWebsocketClient application state path connection = do
+    let [serververId, sessionId, "websocket"] = path
     receive <- atomically newTChan
-
-    connection <- WS.acceptRequest pending
-    addClient state "randomsessionId" receive
+    addClient state sessionId receive
     WS.sendTextData connection (T.pack "o") -- sockjs client expects an "o" message to open socket
     _ <- forkIO $ heartbeat connection
-    _ <- forkIO $ runApplication application "randomsessionId" state receive
-    _ <- race (receiveLoop receive connection) (sendLoop state connection)
+    _ <- forkIO $ runApplication application sessionId state receive
+    race_ (receiveLoop receive connection) (sendLoop sessionId state connection)
     return ()
 
 receiveLoop receive connection =
     forever $ do
        msg <- WS.receiveData connection :: IO T.Text
        atomically $ writeTChan receive $ msgFromFrame msg
-sendLoop state connection =
+sendLoop sessionId state connection =
     forever $ do
-       msg <- msgFromApplication "randomsessionId" state
+       msg <- msgFromApplication sessionId state
        WS.sendTextData connection $ msgToFrame msg
 
--- TODO XHR heartbeat. from sockjs-protocol:
 -- The session must time out after 5 seconds of not having a receiving connection. The server must send a heartbeat frame every 25 seconds. The heartbeat frame contains a single h character. This delay may be configurable.
 -- TODO timeout of session and removal of data from server state
 heartbeat connection = do
