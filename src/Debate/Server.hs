@@ -38,7 +38,12 @@ import           System.Timeout
 import           Debate.Types
 
 -- TODO close and cleanup
--- TODO error handling
+-- TODO more error handling
+-- NOTE: for exhaustive implementation of sockjs:
+--  * content types: ['text/plain', 'T', 'application/json', 'application/xml', '', 'application/json; charset=utf-8', 'text/xml; charset=utf-8', 'text/xml']
+--  * haskell websockets library only supports Hybi13 (that's what the code suggests), none of the other websocket protocols (Hixie76, Hybi10, Hybi07), which are necessary for a complete implementation
+--  * iframe, xhr streaming, json polling, ...
+--  * params: transport types, heartbeat delay
 
 runServer configuration application = do
     let settings = Warp.setPort (port configuration) Warp.defaultSettings
