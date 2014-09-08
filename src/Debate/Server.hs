@@ -51,7 +51,6 @@ runServer configuration application = do
 -- /prefix/server id/session id unique to session
 -- add '/websocket' for websocket transport
 -- add '/xhr' for xhr-polling
--- todo routing on prefix too (threading)
 httpApplication configuration application state req respond = do
                                  let (pathPrefix, _) = H.decodePath $ encodeUtf8 $ prefix configuration -- can be more than one /
                                      path = Wai.pathInfo req
@@ -85,10 +84,10 @@ responseInfo req respond = do
                                                    ]
 
 pollXHR application sessionId state@ServerState{..} req respond = do
-                   clientMap <- readTVarIO clients
-                   if Map.member sessionId clientMap
-                    then pendingMessagesXHR sessionId state req respond
-                    else openXHR application state sessionId req respond -- new session opened
+                   existingClient <- existingSessionId sessionId state
+                   if existingClient
+                     then pendingMessagesXHR sessionId state req respond
+                     else openXHR application state sessionId req respond -- new session opened
 
 openXHR application state@ServerState{..} sessionId req respond = do 
                    receiveChan <- atomically newTChan
@@ -118,12 +117,21 @@ emptyResponse respond req = respond $ Wai.responseLBS H.status200
 msgResponse respond req msg = respond $ Wai.responseLBS H.status200  
                                  (commonHeaders req) $ L.fromChunks [encodeUtf8 $ frameToText (DataFrame msg)]
 
+existingSessionId :: SessionId -> ServerState -> IO Bool
+existingSessionId sessionId ServerState{..} = do
+                   clientMap <- readTVarIO clients
+                   return $ Map.member sessionId clientMap
+
 processXHR sessionId state req respond = do 
-                   body <- Wai.requestBody req
-                   let msg = msgFromFrame . decodeUtf8 $ body
-                   msgToApplication sessionId state msg
-                   respond $ Wai.responseLBS H.status204 
-                    (commonHeaders req) ""
+                   existingClient <- existingSessionId sessionId state
+                   if existingClient
+                   then do
+                    body <- Wai.requestBody req
+                    let msg = msgFromFrame . decodeUtf8 $ body
+                    msgToApplication sessionId state msg
+                    respond $ Wai.responseLBS H.status204 
+                        (commonHeaders req) ""
+                   else response404 respond
 
 -- application is running on separate thread
 -- * gets sent msgs in TChan

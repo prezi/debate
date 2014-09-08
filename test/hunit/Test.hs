@@ -23,8 +23,8 @@ main =
     testGroup "basic sockjs" [ testCase "info request" caseInfoRequest ]
   , testGroup "xhr-polling" [ testCase "open connection" caseXHRopen
                             , testCase "receive message" caseXHRReceiveMessage
-                            , testCase "receive and send message" caseXHRReceiveSendMessage ]
-                            --, testCase "try to send message on unopened session" caseXHRBadMessage ]
+                            , testCase "receive and send message" caseXHRReceiveSendMessage
+                            , testCase "try to send message on unopened session" caseXHRBadMessage ]
   ]
 
 -- helpers
@@ -71,4 +71,8 @@ caseXHRReceiveSendMessage = do
         receiveResponse <- post "/foo/000/aeiou/xhr" ""
         assertBody "a[\"test\"]\n" receiveResponse
 
---caseXHRBadMessage = undefined
+caseXHRBadMessage = do
+    state <- emptyState
+    flip runSession (httpApplication Config {port = 8881, prefix = "/foo"} echoApp state) $ do
+        sendResponse <- post "/foo/000/aeiou/xhr_send" "body=a[\"test\"]"
+        assertStatus 404 sendResponse
