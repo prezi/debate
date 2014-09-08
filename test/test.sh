@@ -17,6 +17,11 @@ done
 node test/test.js
 status=$?
 
+if [ $status -eq 0 ]; then
+  node test/test_xhr.js
+  status=$?
+fi
+
 kill $selenium_pid
 
 exit $status
