@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="http://cdn.sockjs.org/sockjs-0.3.js"></script>
+    <!-- bootstrap -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+    <style>
+       .header {
+         background: #C0DBFF;
+         color: black;
+         padding: 0;
+       }
+       .header h1 {
+         margin: 0;
+         padding: 0 10px;
+         line-height: 65px;
+       }
+       #channels {
+         background: #f2f7fc;
+       }
+       #channels h2 {
+         font-size: 20px;
+       }
+       #input form input {
+         width: 100%;
+       }
+       #chatbox, #channels {
+         min-height: 300px;
+         overflow-y: scroll;
+         max-height:500px;
+       }
+    </style>
+</head><body>
+    <div class="container-fluid">
+        <div class="row header">
+          <h1>SockJS chat</h1>
+        </div>
+
+        <div class="row">
+            <div class="col-md-10" id="chatbox">
+            </div>
+            <div class="col-md-2" id="channels">
+               <h2>Channels</h2>
+               <div class="list">
+               </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-10" id="input">
+               <form><input autocomplete="off" placeholder="Type here..."></input></form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+    <script src="/js/chat-client.js"></script>
+</body></html>
