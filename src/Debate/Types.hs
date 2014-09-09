@@ -44,6 +44,7 @@ data ControlFrame = OpenFrame
 data SockConnection = SockConnection {
                       receiveData :: IO T.Text
                     , sendTextData :: T.Text -> IO ()
+                    , broadcastData :: T.Text -> IO ()
                     }
 
 frameToText :: Frame -> T.Text

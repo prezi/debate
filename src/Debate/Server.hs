@@ -36,6 +36,7 @@ import qualified Data.ByteString.Lazy as L (fromChunks)
 import           Data.Aeson
 import qualified Data.Map.Strict as Map
 import           Data.List ((\\))
+import           Data.Traversable (mapM)
 
 import           System.Timeout
 
@@ -161,8 +162,14 @@ msgFromApplication sessionId ServerState{..} = atomically $ do
     takeTMVar (pendingMessages client)
 
 runApplication application sessionId state receive = forever $
-    application SockConnection { receiveData = atomically $ readTChan receive, sendTextData = sendMessage }
+    application SockConnection { receiveData = atomically $ readTChan receive, sendTextData = sendMessage, broadcastData = broadcast state }
     where sendMessage = addPendingMessages sessionId state
+
+broadcast :: ServerState -> T.Text -> IO ()
+broadcast state@ServerState{..} msg = do
+    clientMap <- readTVarIO clients
+    Data.Traversable.mapM (\client -> addPendingMessages (sessionID client) state msg) clientMap -- mapM_ for traversable?
+    return ()
 
 -- add msg to TVar as a queue
 addPendingMessages :: SessionId -> ServerState -> T.Text -> IO ()
@@ -245,4 +252,3 @@ defaultConfiguration = Config { port = 8888, prefix = "/", transportWhitelist = 
 setPort num configuration = configuration { port = num } 
 setPrefix pf configuration = configuration { prefix = pf } 
 setTransportWhitelist tl configuration = configuration { transportWhitelist = tl } 
-

@@ -24,13 +24,20 @@ main =
   , testGroup "xhr-polling" [ testCase "open connection" caseXHRopen
                             , testCase "receive message" caseXHRReceiveMessage
                             , testCase "receive and send message" caseXHRReceiveSendMessage
-                            , testCase "try to send message on unopened session" caseXHRBadMessage ]
+                            , testCase "try to send message on unopened session" caseXHRBadMessage
+                            , testCase "broadcast" caseXHRBroadcast ]
   ]
 
 -- helpers
 echoApp connection = forever $ do
     msg <- receiveData connection
     sendTextData connection msg
+
+broadcastApp connection = do
+    broadcastData connection "hello"
+    forever $ do
+        msg <- receiveData connection
+        sendTextData connection msg
 
 get path = srequest $ SRequest (setPath defaultRequest path) ""
 post path content = srequest $ SRequest ((setPath defaultRequest path) {requestMethod = "POST", requestHeaders = [("Content-Type","application/x-www-form-urlencoded")]}) (L.fromChunks [content])
@@ -76,3 +83,11 @@ caseXHRBadMessage = do
     flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) echoApp state) $ do
         sendResponse <- post "/foo/000/aeiou/xhr_send" "body=a[\"test\"]"
         assertStatus 404 sendResponse
+
+caseXHRBroadcast = do
+    state <- emptyState
+    flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) broadcastApp state) $ do
+        _ <- post "/foo/000/aeiou/xhr" ""
+        -- broadcast app broadcasts on open of session
+        receiveResponse <- post "/foo/000/aeiou/xhr" ""
+        assertBody "a[\"hello\"]\n" receiveResponse
