@@ -13,15 +13,8 @@ while [ $selenium_running -eq 0 ]; do
 	fi
 done
 
-echo "\n\nTesting Websocket...\n"
 node test/test.js
 status=$?
-
-if [ $status -eq 0 ]; then
-  echo "\n\nTesting XHR-polling...\n"
-  node test/test_xhr.js
-  status=$?
-fi
 
 kill $selenium_pid
 
