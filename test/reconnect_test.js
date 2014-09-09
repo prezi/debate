@@ -9,6 +9,13 @@ var browser = require("testium").getBrowser(),
 var reconnect_test = function(config) {
     describe('reconnect behavior', function() {
         var websocketChild;
+
+        before(function(done) {
+            exec('killall ' + config.websocketCommand, function(error, stdout, stderr) {
+              setTimeout(done, 1000);
+            });
+        });
+
         // if child process created, it should always be killed at the end
         afterEach(function(done) {
             if (websocketChild) {
@@ -25,8 +32,11 @@ var reconnect_test = function(config) {
         });
 
         beforeEach(function(done) {
-            websocketChild = cp.spawn(config.websocketServer, config.websocketArgs);
-            setTimeout(done, 1000);
+            //making sure no extra processes running from failed test runs
+            exec('killall ' + config.websocketCommand, function(error, stdout, stderr) {
+              websocketChild = cp.spawn(config.websocketServer, config.websocketArgs);
+              setTimeout(done, 1000);
+            });
         });
 
         it('connects when accessing the page', function() {
@@ -58,7 +68,7 @@ var reconnect_test = function(config) {
                     setTimeout(function() {
                         browser.assert.elementHasText("#status", "reconnected")
                         done();
-                    }, 1000);
+                    }, 1500);
                 });
             });
         });
