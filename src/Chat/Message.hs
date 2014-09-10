@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Chat.Message (
   ServerMessage(..)
@@ -51,4 +51,4 @@ parseLogin = Login <$>
 parseLogout = reserved "LOGOUT" >> return Logout
 
 parseMessage :: String -> Either ParseError ServerMessage
-parseMessage input = parse messageParser "message didn't parse successfully" input
+parseMessage = parse messageParser "message didn't parse successfully"
