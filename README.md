@@ -31,3 +31,17 @@ run tests
 ## Note Haskell tests
 
 at the time of writing stable happy doesn't play well with GHC 7.8.  Install the latest version of happy on your system for hlint to install.
+
+## Run Chat server example
+
+Run the node page:
+
+    node chat.js
+
+Run the websocket app:
+
+    cabal run chat-server-example
+
+access the page in a browser
+
+    http://0.0.0.0:9999/chat.html
