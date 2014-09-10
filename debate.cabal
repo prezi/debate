@@ -19,6 +19,7 @@ library
   exposed-modules:     Debate.Server
                      , Debate.Types
                      , Chat.Message
+                     , Chat.Application
   build-depends:       base >=4.6 && <4.8
                      , websockets
                      , text
@@ -36,6 +37,8 @@ library
                      , wai-extra
                      , async
                      , parsec
+                     , transformers
+                     , hslogger
   ghc-options:       -Wall -threaded
   hs-source-dirs:      src
   default-language:    Haskell2010
