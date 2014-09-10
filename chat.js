@@ -2,9 +2,10 @@ var args = process.argv.slice(2);
 
 var http = require('http');
 var node_static = require('node-static');
+var path = require("path");
 
 // 2. Static files server
-var static_directory = new node_static.Server(__dirname);
+var static_directory = new node_static.Server(path.resolve(__dirname, "public/chat"));
 
 // 3. Usual http stuff
 var server = http.createServer();

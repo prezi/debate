@@ -44,4 +44,4 @@ Run the websocket app:
 
 access the page in a browser
 
-    http://0.0.0.0:9999/chat.html
+    http://0.0.0.0:9999/
