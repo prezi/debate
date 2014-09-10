@@ -14,6 +14,8 @@ import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TMVar
 import Control.Concurrent.STM.TChan
 
+import qualified Data.Text as T
+
 import Debate.Server
 import Chat.Application
 
@@ -30,15 +32,20 @@ newTestConnection input output broadcast = SockConnection { receiveData = atomic
    where sendTest text = atomically $ putTMVar output text
          broadcastTest text = atomically $ putTMVar broadcast text
 
+type TestConnection = (TMVar T.Text, TMVar T.Text, TMVar T.Text)
 
-runTestApplication input assertions = do
-    input <- newTMVarIO input
+
+runTestApplication assertions = do
+    input <- newEmptyTMVarIO
     output <- newEmptyTMVarIO
     broadcast <- newEmptyTMVarIO
     let conn = newTestConnection input output broadcast
     _ <- forkIO (chat conn)
-    (outputData, broadcastData) <- retrievalLoop output broadcast
-    assertions outputData broadcastData
+    assertions (input, output, broadcast)
+
+retrieval (input, output, broadcast) text = do
+    atomically $ putTMVar input text
+    retrievalLoop output broadcast
     where retrievalLoop output broadcast = do
             outputData <- atomically $ tryTakeTMVar output
             broadcastData <- atomically $ tryTakeTMVar broadcast
@@ -47,5 +54,6 @@ runTestApplication input assertions = do
               else return (outputData, broadcastData)
 
 caseLoginSuccessful = do
-    runTestApplication "LOGIN test test" $ \outputData broadcastData ->
+    runTestApplication $ \conn -> do
+       (outputData, broadcastData) <- retrieval conn "LOGIN test test"
        assertEqual "broadcasted data" (Just "test just logged in") broadcastData
