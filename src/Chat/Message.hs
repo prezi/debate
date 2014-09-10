@@ -28,7 +28,7 @@ data ServerMessage =
   deriving (Read, Show, Eq)
 
 chatDef :: Token.LanguageDef st
-chatDef = emptyDef { Token.reservedNames = ["LOGIN"]
+chatDef = emptyDef { Token.reservedNames = ["LOGIN", "LOGOUT"]
                    , Token.caseSensitive = False }
 
 lexer = Token.makeTokenParser chatDef
@@ -39,6 +39,7 @@ whiteSpace = Token.whiteSpace lexer
 messageParser :: Parser ServerMessage
 messageParser =
       try parseLogin
+  <|> try parseLogout
   <|> return (Invalid "Couldn't parse")
 
 parseLogin = Login <$>
@@ -46,6 +47,8 @@ parseLogin = Login <$>
                 many (noneOf " ")) <*>
                 (whiteSpace *>
                 many (noneOf " "))
+
+parseLogout = reserved "LOGOUT" >> return Logout
 
 parseMessage :: String -> Either ParseError ServerMessage
 parseMessage input = parse messageParser "message didn't parse successfully" input

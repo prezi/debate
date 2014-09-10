@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
 import           Control.Monad      (forever)
 import Debate.Server
-import Control.Monad (when)
+import Control.Monad (when, mzero)
+import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Class (lift)
 import Control.Concurrent.STM.TVar
 import Data.Aeson (FromJSON, ToJSON, decode, encode)
 import GHC.Generics (Generic) -- generics
@@ -22,23 +24,20 @@ chat connection = forever $ do
         let msg = parseMessage (T.unpack received)
         case msg of
           Right (Login name pass) -> case (checkCredentials name pass) of
-                                       Just user -> (loggedInUser user connection)
+                                       Just user -> loggedIn user connection >> return ()
                                        Nothing   -> sendTextData connection "login failed"
           otherwise               -> sendTextData connection "Please log in first by doing LOGIN user passwd"
 
 -- log in ok for now
 checkCredentials user pass = Just user
 
-loggedInUser user connection = do
+loggedIn user connection = do
         broadcastData connection (T.concat [T.pack user, " just logged in"])
-        forever $ do
-            received <- receiveData connection
-            sendTextData connection (T.concat [T.pack user, ": ", received])
+        runMaybeT $ forever $ do
+            received <- lift $ receiveData connection
+            case parseMessage (T.unpack received) of
+              Right Logout -> do lift $ broadcastData connection (T.concat [T.pack user, " just logged out"])
+                                 breakLoop  -- leave loggedIn loop
+              otherwise    -> lift $ sendTextData connection (T.concat [T.pack user, ": ", received])
 
-
-
-
--- possibilities:
--- login message
-
-
+breakLoop = mzero
