@@ -36,14 +36,16 @@ chat connection = forever $ do
 -- log in ok for now
 checkCredentials user pass = Just user
 
+-- TODO: only broadcast to logged in users!
 loggedIn user connection = do
-        warningM "Chat" (user ++ " just logged in")
+        warningM "Chat.Application" (user ++ " just logged in")
         broadcastData connection (T.concat [T.pack user, " just logged in"])
         runMaybeT $ forever $ do
             received <- lift $ receiveData connection
             case parseMessage (T.unpack received) of
               Right Logout -> do lift $ broadcastData connection (T.concat [T.pack user, " just logged out"])
+                                 lift $ warningM "Chat.Application" (user ++ " just logged out")
                                  breakLoop  -- leave loggedIn loop
-              otherwise    -> lift $ sendTextData connection (T.concat [T.pack user, ": ", received])
+              otherwise    -> lift $ broadcastData connection (T.concat [T.pack user, ": ", received])
 
 breakLoop = mzero
