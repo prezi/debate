@@ -21,8 +21,8 @@ import Chat.Application
 
 chatSuite =
   [
-    testGroup "login" [ testCase "login successful" caseLoginSuccessful ]
-  , testGroup "login" [ testCase "login successful" caseLoginSuccessful ]
+    testGroup "login - logout" [ testCase "login successful" caseLoginSuccessful
+                               , testCase "logout" caseLogout ]
   ]
 
 -- setup test helpers to be able to test sockjs apps independently from underlying sockjs handling
@@ -58,6 +58,7 @@ caseLoginSuccessful = do
     runTestApplication $ \conn -> do
        (outputData, broadcastData) <- retrieval conn "LOGIN test test"
        assertEqual "broadcasted data" (Just "test just logged in") broadcastData
+
 caseLogout = do
     runTestApplication $ \conn -> do
        _ <- retrieval conn "LOGIN test test"
