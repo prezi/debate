@@ -24,7 +24,7 @@ data User = User { name :: T.Text
 data UserState = TVar (Map.Map T.Text User)
 
 
-chat connection = forever $ do
+chat checkCredentials connection = forever $ do
         received <- receiveData connection
         let msg = parseMessage (T.unpack received)
         case msg of
@@ -32,9 +32,6 @@ chat connection = forever $ do
                                        Just user -> void (loggedIn user connection)
                                        Nothing   -> sendTextData connection "login failed"
           otherwise               -> sendTextData connection "Please log in first by doing LOGIN user passwd"
-
--- log in ok for now
-checkCredentials user pass = Just user
 
 -- TODO: only broadcast to logged in users!
 loggedIn user connection = do

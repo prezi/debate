@@ -36,13 +36,16 @@ newTestConnection input output broadcast = SockConnection { receiveData = atomic
 type TestConnection = (TMVar T.Text, TMVar T.Text, TMVar T.Text)
 
 
-runTestApplication assertions = do
+runTestApplication checkCredentials assertions = do
     input <- newEmptyTMVarIO
     output <- newEmptyTMVarIO
     broadcast <- newEmptyTMVarIO
     let conn = newTestConnection input output broadcast
-    _ <- forkIO (chat conn)
+    _ <- forkIO (chat checkCredentials conn)
     assertions (input, output, broadcast)
+
+-- pass in authentication method
+checkWorks user pass = Just user
 
 retrieval (input, output, broadcast) text = do
     atomically $ putTMVar input text
