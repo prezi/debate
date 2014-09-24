@@ -17,6 +17,9 @@ import           Control.Concurrent.STM.TVar
 import           Control.Concurrent.STM.TChan
 import qualified Data.Map.Strict as Map
 import qualified Data.Text          as T
+import Data.Aeson (encode)
+import Data.ByteString.Lazy (toStrict)
+import Data.Text.Encoding (decodeUtf8)
 
 data Config = Config { port :: Int
                      , prefix :: T.Text
@@ -49,7 +52,7 @@ data SockConnection = SockConnection {
 
 frameToText :: Frame -> T.Text
 frameToText (ControlFrame OpenFrame) =  "o\n"
-frameToText (DataFrame msgs) = T.concat ["a[\"", T.intercalate "\",\""  msgs, "\"]\n"]
+frameToText (DataFrame msgs) = T.concat ["a", decodeUtf8 . toStrict . encode $ msgs, "\n"]
 frameToText (ControlFrame HeartbeatFrame) = "h\n"
 frameToText (ControlFrame CloseFrame) = "c\n"
 
