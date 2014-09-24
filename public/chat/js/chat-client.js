@@ -29,6 +29,12 @@ $( document ).ready(function() {
         channels.filter("." + channel).addClass("current");
     }
 
+    var removeChannels = function() {
+        console.log('removing channels');
+        channels.empty();
+        channelList = [];
+    }
+
     var channelMessage = function(channel, message) {
         if ($.inArray(channel, channelList) != -1 && currentChannel == channel) {
             print(message);
@@ -43,11 +49,18 @@ $( document ).ready(function() {
         return json
     }
 
+    var reinitialize = function() {
+        removeChannels();
+        user = null;
+        loggedIn = false;
+        currentChannel = null;
+    }
+
     var reconnect = function() {
         var sockjs = new SockJS(sockjs_url, undefined, {protocols_whitelist: ['websocket', 'xhr-polling'], debug: true});
 
         // when connecting, should indicated to user that connected, and that should login
-        sockjs.onopen    = function()  {};
+        sockjs.onopen    = function()  { reinitialize(); };
         // handle refuse access to room/join room, leave room
         sockjs.onmessage = function(e) {
           var message = $.parseJSON(e.data);
@@ -68,11 +81,8 @@ $( document ).ready(function() {
                   break;
               case "logout":
                   channelMessage(mainChatRoom, message.user + " just logged out");
-                  if (loggedIn && user == message.user) {
-                    channelList = [];
-                    currentChannel = null;
-                    loggedIn = false;
-                  }
+                  console.log(loggedIn, user == message.user, user, message.user);
+                  if (loggedIn && user == message.user) { reinitialize(); }
                   break;
               default:
                   console.log("default", message);
