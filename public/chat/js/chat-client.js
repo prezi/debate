@@ -9,6 +9,7 @@ $( document ).ready(function() {
     var channelList = [];
     var currentChannel = null;
     var loggedIn = false;
+    var mainChatRoom = "Lobby";
 
     var print = function(m, p) {
         p = (p === undefined) ? '' : JSON.stringify(p);
@@ -29,7 +30,7 @@ $( document ).ready(function() {
     }
 
     var channelMessage = function(channel, message) {
-        if ($.inArray(channel, channelList) && currentChannel == channel) {
+        if ($.inArray(channel, channelList) != -1 && currentChannel == channel) {
             print(message);
         }
     }
@@ -49,7 +50,7 @@ $( document ).ready(function() {
         sockjs.onopen    = function()  {};
         // handle refuse access to room/join room, leave room
         sockjs.onmessage = function(e) {
-          var message = e.data;
+          var message = $.parseJSON(e.data);
           // possible messages:
           // - user logged in: {user: user, command: login}
           // - user logged out {user: user, command: logout}
@@ -58,22 +59,23 @@ $( document ).ready(function() {
           switch (message.command) {
               case "login":
                   if (!loggedIn) {
-                      addChannel("Lobby");
-                      setCurrentChannel("Lobby");
+                      addChannel(mainChatRoom);
+                      setCurrentChannel(mainChatRoom);
                       user = message.user;
                       loggedIn = true;
                   }
-                  channelMessage("Lobby", message.user + " just logged in");
+                  channelMessage(mainChatRoom, message.user + " just logged in");
                   break;
               case "logout":
-                  channelMessage("Lobby", message.user + " just logged out");
+                  channelMessage(mainChatRoom, message.user + " just logged out");
                   if (loggedIn && user == message.user) {
                     channelList = [];
                     currentChannel = null;
+                    loggedIn = false;
                   }
                   break;
               default:
-                  console.log(message);
+                  console.log("default", message);
                   break;
           }
           
@@ -86,7 +88,6 @@ $( document ).ready(function() {
         // send messages: identify, join room, leave room, say something
         form.submit(function() {
             // data to be sent includes: the user, channel and the message
-            console.log(JSON.stringify(messageJSON(user, currentChannel, input.val())));
             sockjs.send(JSON.stringify(messageJSON(user, currentChannel, input.val())));
             input.val('');
             return false;
