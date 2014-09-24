@@ -18,6 +18,7 @@ import           Control.Monad.Trans (liftIO)
 import           Control.Concurrent (forkIO, threadDelay)
 import           Control.Concurrent.STM
 import           Control.Concurrent.Async
+import           Control.Exception (fromException, handle)
 import           System.Random (randomRIO)
 import           Data.Maybe (fromMaybe, fromJust)
 
@@ -115,6 +116,12 @@ addClient ServerState{..} sessionId receiveChan = atomically $ do
                    emptyPending <- newEmptyTMVar
                    writeTVar clients $ Map.insert sessionId Client { sessionID = sessionId, pendingMessages = emptyPending, receiveChan = receiveChan } clientMap
 
+removeClient :: ServerState -> SessionId -> IO ()
+removeClient ServerState{..} sessionId = atomically $ do
+                   clientMap <- readTVar clients
+                   emptyPending <- newEmptyTMVar
+                   writeTVar clients $ Map.delete sessionId clientMap
+
 -- xhr delay 5 seconds for now - could be a parameter
 pendingMessagesXHR sessionId state@ServerState{..} req respond = timedResponse 5000000 (msgFromApplication sessionId state) (msgResponse respond req) (emptyResponse respond req)
 
@@ -195,13 +202,16 @@ newWebsocketClient application state path connection = do
     WS.sendTextData connection (T.pack "o") -- sockjs client expects an "o" message to open socket
     _ <- forkIO $ heartbeat connection
     _ <- forkIO $ runApplication application sessionId state receive
-    race_ (receiveLoop receive connection) (sendLoop sessionId state connection)
+    race_ (receiveLoop receive connection state sessionId) (sendLoop sessionId state connection)
     return ()
 
-receiveLoop receive connection =
+receiveLoop receive connection state sessionId = handle (catchDisconnect state sessionId) $
     forever $ do
        msg <- WS.receiveData connection :: IO T.Text
        atomically $ writeTChan receive $ msgFromFrame msg
+     where catchDisconnect state sessionId e = case fromException e of
+            Just WS.ConnectionClosed -> removeClient state sessionId
+            _ -> return ()
 sendLoop sessionId state connection =
     forever $ do
        msg <- msgFromApplication sessionId state
