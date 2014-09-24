@@ -239,12 +239,6 @@ headerCORS def req = allowHeaders ++ allowOrigin ++ allowCredentials
                    _      -> [("Access-Control-Allow-Origin", origin)]
           origin = fromMaybe def . lookup "Origin" $ Wai.requestHeaders req
 
-msgFromFrame :: T.Text -> T.Text
-msgFromFrame msg = T.splitOn "\"" msg !! 1
-
-msgToFrame :: [T.Text] -> T.Text
-msgToFrame msgs = frameToText $ DataFrame msgs
-
 -- sensible defaults?
 defaultConfiguration :: Config
 defaultConfiguration = Config { port = 8888, prefix = "/", transportWhitelist = ["websocket", "xhr_polling"] }

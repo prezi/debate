@@ -67,7 +67,7 @@ caseXHRReceiveMessage = do
     flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) echoApp state) $ do
         -- prerequisite: open session
         _ <- post "/foo/000/aeiou/xhr" ""
-        sendResponse <- post "/foo/000/aeiou/xhr_send" "body=a[\"test\"]"
+        sendResponse <- post "/foo/000/aeiou/xhr_send" "[\"test\"]"
         assertStatus 204 sendResponse
 
 caseXHRReceiveSendMessage = do
@@ -75,7 +75,7 @@ caseXHRReceiveSendMessage = do
     flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) echoApp state) $ do
         -- prerequisite: open session
         _ <- post "/foo/000/aeiou/xhr" ""
-        sendResponse <- post "/foo/000/aeiou/xhr_send" "body=a[\"test\"]"
+        sendResponse <- post "/foo/000/aeiou/xhr_send" "[\"test\"]"
         -- test app is echo so we receive message back
         receiveResponse <- post "/foo/000/aeiou/xhr" ""
         assertBody "a[\"test\"]\n" receiveResponse
@@ -83,7 +83,7 @@ caseXHRReceiveSendMessage = do
 caseXHRBadMessage = do
     state <- emptyState
     flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) echoApp state) $ do
-        sendResponse <- post "/foo/000/aeiou/xhr_send" "body=a[\"test\"]"
+        sendResponse <- post "/foo/000/aeiou/xhr_send" "[\"test\"]"
         assertStatus 404 sendResponse
 
 caseXHRBroadcast = do

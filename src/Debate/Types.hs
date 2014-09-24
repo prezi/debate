@@ -9,6 +9,8 @@ module Debate.Types (
 , SockConnection(..)
 , frameToText
 , newServerState
+, msgToFrame
+, msgFromFrame
 )
 where
 
@@ -17,9 +19,10 @@ import           Control.Concurrent.STM.TVar
 import           Control.Concurrent.STM.TChan
 import qualified Data.Map.Strict as Map
 import qualified Data.Text          as T
-import Data.Aeson (encode)
+import Data.Maybe (fromMaybe)
+import Data.Aeson (encode, decodeStrict)
 import Data.ByteString.Lazy (toStrict)
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 
 data Config = Config { port :: Int
                      , prefix :: T.Text
@@ -55,6 +58,13 @@ frameToText (ControlFrame OpenFrame) =  "o\n"
 frameToText (DataFrame msgs) = T.concat ["a", decodeUtf8 . toStrict . encode $ msgs, "\n"]
 frameToText (ControlFrame HeartbeatFrame) = "h\n"
 frameToText (ControlFrame CloseFrame) = "c\n"
+
+-- TODO: handle several messages in one frame
+msgFromFrame :: T.Text -> T.Text
+msgFromFrame msg = head (fromMaybe [""] (decodeStrict (encodeUtf8 msg) :: Maybe [T.Text]))
+
+msgToFrame :: [T.Text] -> T.Text
+msgToFrame msgs = frameToText $ DataFrame msgs
 
 newServerState :: IO ServerState
 newServerState = do
