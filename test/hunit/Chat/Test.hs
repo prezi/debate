@@ -23,10 +23,8 @@ chatSuite =
   [
     testGroup "login - logout" [ testCase "login successful" caseLoginSuccessful
                                , testCase "logout" caseLogout ]
-  {-
   , testGroup "chatrooms" [ testCase "chat in lobby" caseChatInLobby
                           , testCase "join chat room" caseJoinChatroom ]
-  -}
   ]
 
 -- setup test helpers to be able to test sockjs apps independently from underlying sockjs handling
@@ -51,8 +49,9 @@ runTestApplication checkCredentials assertions = do
 -- pass in authentication method
 checkWorks user pass = Just user
 
-retrieval (input, output, broadcast) text = do
-    atomically $ putTMVar input text
+sendText input text = atomically $ putTMVar input text
+
+retrieval (input, output, broadcast) = do
     retrievalLoop output broadcast
     where retrievalLoop output broadcast = do
             outputData <- atomically $ tryTakeTMVar output
@@ -62,29 +61,31 @@ retrieval (input, output, broadcast) text = do
               else return (outputData, broadcastData)
 
 caseLoginSuccessful = do
-    runTestApplication checkWorks $ \conn -> do
-       (outputData, broadcastData) <- retrieval conn "{\"message\": \"LOGIN test test\"}"
+    runTestApplication checkWorks $ \conn@(input,_,_) -> do
+       sendText input "{\"message\": \"LOGIN test test\"}"
+       (outputData, broadcastData) <- retrieval conn
        assertEqual "broadcasted data" (Just "{\"command\":\"login\",\"channel\":null,\"user\":\"test\",\"message\":null}") broadcastData
 
 caseLogout = do
-    runTestApplication checkWorks $ \conn -> do
-       _ <- retrieval conn "{\"message\": \"LOGIN test test\"}"
-       (outputData, broadcastData) <- retrieval conn "{\"channel\": \"Lobby\", \"message\": \"LOGOUT\"}"
+    runTestApplication checkWorks $ \conn@(input,_,_) -> do
+       sendText input "{\"message\": \"LOGIN test test\"}"
+       _ <- retrieval conn
+       sendText input "{\"channel\": \"Lobby\", \"message\": \"LOGOUT\"}"
+       (outputData, broadcastData) <- retrieval conn
        assertEqual "broadcasted data" (Just "{\"command\":\"logout\",\"channel\":null,\"user\":\"test\",\"message\":null}") broadcastData
 
-{-
 caseChatInLobby = do
-    runTestApplication checkWorks $ \conn1-> do
-      _ <- retrieval conn1 "LOGIN user1 pass1"
-      runTestApplication $ \conn2 -> do
-        _ <- retrieval conn2 "LOGIN user2 pass2"
-        _ <- retrieval conn2 "I say something"
-        (_, broadcastData) <- retrieval conn2 "I say something"
-        assertEqual "broadcasted data" (Just "user2: I say something") broadcastData
+    runTestApplication checkWorks $ \conn1@(input,_,_) -> do
+      sendText input "{\"message\":\"LOGIN user1 pass1\"}"
+      _ <- retrieval conn1
+      sendText input "{\"message\":\"I say something\", \"user\": \"user1\", \"channel\":\"Lobby\"}"
+      (outputData, broadcastData) <- retrieval conn1
+      assertEqual "incoming data" (Just "{\"command\":\"msg\", \"channel\":\"Lobby\", \"user\":\"user1\", \"message\": \"user1: I say something\"") outputData
 
 caseJoinChatroom = do
-    runTestApplication checkWorks $ \conn -> do
-       _ <- retrieval conn "LOGIN user1 pass1"
-       (outputData, broadcastData) <- retrieval conn "JOIN room1"
+    runTestApplication checkWorks $ \conn@(input,_,_) -> do
+       sendText input "LOGIN user1 pass1"
+       _ <- retrieval conn
+       sendText input "JOIN room1"
+       (outputData, broadcastData) <- retrieval conn
        assertEqual "broadcasted data" (Just "test just logged in") broadcastData
--}
