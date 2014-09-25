@@ -2,6 +2,7 @@
 module Chat.Application (
   chat
 , MessageData(..)
+, ChatSecurity(..)
 ) where
 
 import Control.Monad (mzero, forever, void)
@@ -26,6 +27,10 @@ import System.Log.Logger
 
 import Debate.Server
 
+data ChatSecurity = ChatSecurity {
+                      checkCredentials :: String -> String -> IO (Maybe String)
+                    , checkAccess :: String -> String -> IO (Maybe String)
+                    }
 data User = User { userName :: T.Text
                  , handle :: SockConnection }
 
@@ -78,7 +83,7 @@ newUserState = do newVar <- atomically $ newTVar Map.empty
                   return UserState {users = newVar}
 mainChatRoom = "Lobby"
 
-chat checkCredentials checkAccess connection = do
+chat ChatSecurity{..} connection = do
     roomState <- newRoomState
     userState <- newUserState
     forever $ do

@@ -38,16 +38,18 @@ newTestConnection input output broadcast = SockConnection { receiveData = atomic
 type TestConnection = (TMVar T.Text, TMVar T.Text, TMVar T.Text)
 
 
-runTestApplication checkCredentials assertions = do
+runTestApplication security assertions = do
     input <- newEmptyTMVarIO
     output <- newEmptyTMVarIO
     broadcast <- newEmptyTMVarIO
     let conn = newTestConnection input output broadcast
-    _ <- forkIO (chat checkCredentials conn)
+    _ <- forkIO (chat security conn)
     assertions (input, output, broadcast)
 
 -- pass in authentication method
-checkWorks user pass = Just user
+checkPasses user pass = return $ Just user
+checkAccessPasses user _ = return $ Just user
+allOKSecurity = ChatSecurity {checkCredentials = checkPasses, checkAccess = checkAccessPasses}
 
 sendText input text = atomically $ putTMVar input text
 
@@ -61,13 +63,13 @@ retrieval (input, output, broadcast) = do
               else return (outputData, broadcastData)
 
 caseLoginSuccessful = do
-    runTestApplication checkWorks $ \conn@(input,_,_) -> do
+    runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN test test\"}"
        (outputData, broadcastData) <- retrieval conn
        assertEqual "broadcasted data" (Just "{\"command\":\"login\",\"channel\":null,\"user\":\"test\",\"message\":null}") broadcastData
 
 caseLogout = do
-    runTestApplication checkWorks $ \conn@(input,_,_) -> do
+    runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN test test\"}"
        _ <- retrieval conn
        sendText input "{\"channel\": \"Lobby\", \"message\": \"LOGOUT\"}"
@@ -75,7 +77,7 @@ caseLogout = do
        assertEqual "broadcasted data" (Just "{\"command\":\"logout\",\"channel\":null,\"user\":\"test\",\"message\":null}") broadcastData
 
 caseChatInLobby = do
-    runTestApplication checkWorks $ \conn1@(input,_,_) -> do
+    runTestApplication allOKSecurity $ \conn1@(input,_,_) -> do
       sendText input "{\"message\":\"LOGIN user1 pass1\"}"
       _ <- retrieval conn1
       sendText input "{\"message\":\"I say something\", \"user\": \"user1\", \"channel\":\"Lobby\"}"
@@ -83,7 +85,7 @@ caseChatInLobby = do
       assertEqual "incoming data" (Just "{\"command\":\"msg\", \"channel\":\"Lobby\", \"user\":\"user1\", \"message\": \"user1: I say something\"") outputData
 
 caseJoinChatroom = do
-    runTestApplication checkWorks $ \conn@(input,_,_) -> do
+    runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
        sendText input "LOGIN user1 pass1"
        _ <- retrieval conn
        sendText input "JOIN room1"

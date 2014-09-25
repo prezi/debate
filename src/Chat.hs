@@ -10,13 +10,16 @@ import System.Log.Formatter
 
 main = do
         setupLogger
-        runServer (setPort 8989 (setPrefix "/chat" defaultConfiguration)) (chat checkCredentials)
+        runServer (setPort 8989 (setPrefix "/chat" defaultConfiguration)) (chat $ ChatSecurity {checkCredentials = checkUserPass, checkAccess = checkAccessToRoom})
 
--- pass in authentication method
-checkCredentials user pass = Just user
+-- pass in authentication and access
+checkUserPass :: String -> String -> IO (Maybe String)
+checkUserPass userName pass = return $ Just userName
+checkAccessToRoom :: String -> String -> IO (Maybe String)
+checkAccessToRoom userName _ = return $ Just userName
 
 setupLogger = do
         myStreamHandler <- streamHandler stderr INFO
         let myStreamHandler' = setFormatter myStreamHandler (simpleLogFormatter "[$time $loggername $prio] $msg")
-        updateGlobalLogger rootLoggerName (setLevel INFO)
+        updateGlobalLogger rootLoggerName (setLevel DEBUG)
         updateGlobalLogger rootLoggerName (setHandlers [myStreamHandler'])
