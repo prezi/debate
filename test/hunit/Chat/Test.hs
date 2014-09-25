@@ -9,7 +9,7 @@ import Test.Framework.Providers.HUnit
 import Test.Framework.TH
 import Test.Framework
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TMVar
 import Control.Concurrent.STM.TChan
@@ -53,13 +53,16 @@ allOKSecurity = ChatSecurity {checkCredentials = checkPasses, checkAccess = chec
 
 sendText input text = atomically $ putTMVar input text
 
+-- 5 seconds should be enough to retrieve anything
 retrieval (input, output, broadcast) = do
-    retrievalLoop output broadcast
-    where retrievalLoop output broadcast = do
+    retrievalLoop output broadcast 10
+    where retrievalLoop _ _ 0 = return (Nothing, Nothing)
+          retrievalLoop output broadcast n = do
             outputData <- atomically $ tryTakeTMVar output
             broadcastData <- atomically $ tryTakeTMVar broadcast
             if outputData == Nothing && broadcastData == Nothing
-              then retrievalLoop output broadcast
+              then do threadDelay 500000
+                      retrievalLoop output broadcast (n-1)
               else return (outputData, broadcastData)
 
 caseLoginSuccessful = do
@@ -89,5 +92,5 @@ caseJoinChatroom = do
        sendText input "LOGIN user1 pass1"
        _ <- retrieval conn
        sendText input "JOIN room1"
-       (outputData, broadcastData) <- retrieval conn
-       assertEqual "broadcasted data" (Just "test just logged in") broadcastData
+       (outputData, _) <- retrieval conn
+       assertEqual "outputData" (Just "{}") outputData
