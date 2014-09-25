@@ -41,7 +41,6 @@ messageParser =
       try parseLogin
   <|> try parseLogout
   <|> try parseJoin
-  <|> return (Invalid "Couldn't parse")
 
 parseLogin = Login <$>
                 (reserved "LOGIN"  *>

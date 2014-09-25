@@ -23,8 +23,8 @@ chatSuite =
   [
     testGroup "login - logout" [ testCase "login successful" caseLoginSuccessful
                                , testCase "logout" caseLogout ]
-  , testGroup "chatrooms" [ --testCase "chat in lobby" caseChatInLobby
-                           testCase "join chat room" caseJoinChatroom ]
+  , testGroup "chatrooms" [ testCase "chat in lobby" caseChatInLobby
+                          , testCase "join chat room" caseJoinChatroom ]
   ]
 
 -- setup test helpers to be able to test sockjs apps independently from underlying sockjs handling
@@ -79,15 +79,13 @@ caseLogout = do
        (outputData, broadcastData) <- retrieval conn
        assertEqual "output data" (Just "{\"command\":\"logout\",\"channel\":null,\"user\":\"test\",\"message\":null}") outputData
 
-{-
 caseChatInLobby = do
     runTestApplication allOKSecurity $ \conn1@(input,_,_) -> do
       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
       _ <- retrieval conn1
       sendText input "{\"message\":\"I say something\", \"user\": \"user1\", \"channel\":\"Lobby\"}"
       (outputData, broadcastData) <- retrieval conn1
-      assertEqual "incoming data" (Just "{\"command\":\"msg\", \"channel\":\"Lobby\", \"user\":\"user1\", \"message\": \"user1: I say something\"") outputData
--}
+      assertEqual "incoming data" (Just "{\"command\":\"msg\",\"channel\":\"Lobby\",\"user\":\"user1\",\"message\":\"user1: I say something\"}") outputData
 
 caseJoinChatroom = do
     runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
