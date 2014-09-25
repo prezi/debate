@@ -10,7 +10,7 @@ import System.Log.Formatter
 
 main = do
         setupLogger
-        runServer (setPort 8989 (setPrefix "/chat" defaultConfiguration)) (chat $ ChatSecurity {checkCredentials = checkUserPass, checkAccess = checkAccessToRoom})
+        runServer (setPort 8989 (setPrefix "/chat" defaultConfiguration)) (chat ChatSecurity {checkCredentials = checkUserPass, checkAccess = checkAccessToRoom})
 
 -- pass in authentication and access
 checkUserPass :: String -> String -> IO (Maybe String)
