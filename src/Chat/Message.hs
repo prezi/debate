@@ -28,7 +28,7 @@ data ServerMessage =
   deriving (Read, Show, Eq)
 
 chatDef :: Token.LanguageDef st
-chatDef = emptyDef { Token.reservedNames = ["LOGIN", "LOGOUT"]
+chatDef = emptyDef { Token.reservedNames = ["LOGIN", "LOGOUT", "JOIN"]
                    , Token.caseSensitive = False }
 
 lexer = Token.makeTokenParser chatDef
@@ -40,6 +40,7 @@ messageParser :: Parser ServerMessage
 messageParser =
       try parseLogin
   <|> try parseLogout
+  <|> try parseJoin
   <|> return (Invalid "Couldn't parse")
 
 parseLogin = Login <$>
@@ -49,6 +50,10 @@ parseLogin = Login <$>
                 many (noneOf " "))
 
 parseLogout = reserved "LOGOUT" >> return Logout
+
+parseJoin = Join <$>
+              (reserved "JOIN"  *>
+              many (noneOf " "))
 
 parseMessage :: String -> Either ParseError ServerMessage
 parseMessage = parse messageParser "message didn't parse successfully"
