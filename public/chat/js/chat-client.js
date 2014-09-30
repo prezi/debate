@@ -26,8 +26,8 @@ $( document ).ready(function() {
     // TODO invisible panels for not current channels which become visible
     var setCurrentChannel = function(channel) {
         currentChannel = channel;
-        channels.filter("li").removeClass("current");
-        channels.filter("." + channel).addClass("current");
+        channels.find("li").removeClass("current");
+        channels.find("#" + channel).addClass("current");
     }
 
     var removeChannels = function() {
@@ -66,6 +66,7 @@ $( document ).ready(function() {
         // handle refuse access to room/join room, leave room
         sockjs.onmessage = function(e) {
           var message = $.parseJSON(e.data);
+          console.log(message);
           // possible messages:
           // - user logged in: {user: user, command: login}
           // - user logged out {user: user, command: logout}
@@ -81,6 +82,12 @@ $( document ).ready(function() {
                   }
                   channelMessage(mainChatRoom, message.user + " just logged in");
                   break;
+              case "loginFailed":
+                  print("Login failed");
+                  break;
+              case "loginRequired":
+                  print("Please login first with LOGIN user password");
+                  break;
               case "logout":
                   channelMessage(mainChatRoom, message.user + " just logged out");
                   console.log(loggedIn, user == message.user, user, message.user);
@@ -89,11 +96,13 @@ $( document ).ready(function() {
               case "join":
                   addChannel(message.channel)
                   setCurrentChannel(message.channel)
-                  channelMessage(message.channel, message.user + " just joined the channel");
+                  channelMessage(message.channel, user + " just joined the channel");
+                  break;
               case "msg":
                   channelMessage(message.channel, message.message);
+                  break;
               default:
-                  console.log("default", message);
+                  console.log("command not known");
                   break;
           }
           

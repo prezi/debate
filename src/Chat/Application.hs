@@ -110,7 +110,7 @@ loggedIn userName connection roomState userState checkAccess = do
         let user = User (T.pack userName) connection
         addUserToRoom roomState userState mainChatRoom user
         warningM "Chat.Application" (userName ++ " just logged in")
-        let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LoginCommand }
+        let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = LoginCommand }
         sendToRoom roomState mainChatRoom loginMsg
         runMaybeT $ forever $ lift $ do
             msg <- receiveJsonMessage connection

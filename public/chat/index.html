@@ -21,6 +21,16 @@
        #channels h2 {
          font-size: 20px;
        }
+       #channels ul {
+         list-style-type: none;
+       }
+       #channels li {
+           padding: 5px;
+       }
+       #channels li.current {
+           background: #07c;
+           color: white;
+       }
        #input form input {
          width: 100%;
        }
@@ -41,13 +51,14 @@
             </div>
             <div class="col-md-2" id="channels">
                <h2>Channels</h2>
-               <div class="list">
-               </div>
+               <ul class="list">
+               </ul>
                <div class="howto">
                   <h3>Instructions</h3>
                   <ul>
                     <li>login with: LOGIN user pass</li>
                     <li>logout with: LOGOUT</li>
+                    <li>join a channel with: JOIN channelname</li>
                   </ul>
                </div>
             </div>
