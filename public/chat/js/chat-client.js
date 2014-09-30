@@ -1,16 +1,19 @@
 $( document ).ready(function() {
+    // constants
     var sockjs_url = 'http://0.0.0.0:8989/chat';
 
     var chatbox  = $('#chatbox');
     var input  = $('#input input');
     var form = $('#input form');
     var channels = $('#channels .list');
+    var mainChatRoom = "Lobby";
+
+    // global state -- bad?  potentially move to data structure
     var user = null;
     var channelList = [];
     var currentChannel = null;
     var currentChat = $('#chatbox');
     var loggedIn = false;
-    var mainChatRoom = "Lobby";
 
     var print = function(m, p) {
         p = (p === undefined) ? '' : JSON.stringify(p);
