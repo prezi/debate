@@ -135,6 +135,7 @@ loggedIn userName connection roomState userState checkAccess = do
                                         Nothing -> warningM "Chat.Application" (userName ++ " attempted to join " ++ roomName)
               Leave roomName -> do let tRoomName = T.pack roomName
                                        leaveMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = LeaveCommand }
+                                   -- TODO cannot leave mainChatRoom
                                    sendToRoom roomState tRoomName leaveMsg
                                    removeUserFromRoom roomState userState user tRoomName
                                    warningM "Chat.Application" (userName ++ " left " ++ roomName)
