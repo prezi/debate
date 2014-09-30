@@ -73,7 +73,8 @@ instance ToJSON MessageData where
   toJSON (MessageData user channel message) =
     object [ "user" .= user
            , "channel" .= channel
-           , "message" .= message ]
+           , "message" .= message
+           , "command" .= ("msg" :: String) ]
   toJSON (CommandMsg mbUser mbChannel command) =
     object [ "user" .= toJSON mbUser
            , "channel" .= toJSON mbChannel

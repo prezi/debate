@@ -71,7 +71,7 @@ caseLoginSuccessful = do
     runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN test test\"}"
        (outputData, broadcastData) <- retrieval conn
-       assertEqual "output data" (Just "{\"command\":\"login\",\"channel\":null,\"user\":\"test\",\"message\":null}") outputData
+       assertEqual "output data" (Just "{\"command\":\"login\",\"channel\":null,\"user\":\"test\"}") outputData
 
 caseLogout = do
     runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
@@ -79,7 +79,7 @@ caseLogout = do
        _ <- retrieval conn
        sendText input "{\"channel\": \"Lobby\", \"message\": \"LOGOUT\"}"
        (outputData, broadcastData) <- retrieval conn
-       assertEqual "output data" (Just "{\"command\":\"logout\",\"channel\":null,\"user\":\"test\",\"message\":null}") outputData
+       assertEqual "output data" (Just "{\"command\":\"logout\",\"channel\":null,\"user\":\"test\"}") outputData
 
 caseChatInLobby = do
     runTestApplication allOKSecurity $ \conn1@(input,_,_) -> do
@@ -95,4 +95,4 @@ caseJoinChatroom = do
        _ <- retrieval conn
        sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
        (outputData, _) <- retrieval conn
-       assertEqual "outputData" (Just "{\"command\":\"join\",\"channel\":\"room1\",\"user\":\"user1\",\"message\":null}") outputData
+       assertEqual "outputData" (Just "{\"command\":\"join\",\"channel\":\"room1\",\"user\":\"user1\"}") outputData
