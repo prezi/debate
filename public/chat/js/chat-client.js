@@ -23,6 +23,7 @@ $( document ).ready(function() {
         channelList.push(channel);
     }
 
+    // TODO invisible panels for not current channels which become visible
     var setCurrentChannel = function(channel) {
         currentChannel = channel;
         channels.filter("li").removeClass("current");
@@ -35,6 +36,7 @@ $( document ).ready(function() {
         channelList = [];
     }
 
+    // TODO use invisible pannels if in channel list so post anyway
     var channelMessage = function(channel, message) {
         if ($.inArray(channel, channelList) != -1 && currentChannel == channel) {
             print(message);
@@ -84,6 +86,12 @@ $( document ).ready(function() {
                   console.log(loggedIn, user == message.user, user, message.user);
                   if (loggedIn && user == message.user) { reinitialize(); }
                   break;
+              case "join":
+                  addChannel(message.channel)
+                  setCurrentChannel(message.channel)
+                  channelMessage(message.channel, message.user + " just joined the channel");
+              case "msg":
+                  channelMessage(message.channel, message.message);
               default:
                   console.log("default", message);
                   break;
@@ -98,6 +106,7 @@ $( document ).ready(function() {
         // send messages: identify, join room, leave room, say something
         form.submit(function() {
             // data to be sent includes: the user, channel and the message
+            console.log(user, currentChannel)
             sockjs.send(JSON.stringify(messageJSON(user, currentChannel, input.val())));
             input.val('');
             return false;
