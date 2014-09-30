@@ -3,6 +3,8 @@ module Chat.Application (
   chat
 , MessageData(..)
 , ChatSecurity(..)
+, newRoomState
+, newUserState
 ) where
 
 import Control.Monad (mzero, forever, void, when)
@@ -83,9 +85,7 @@ newUserState = do newVar <- atomically $ newTVar Map.empty
                   return UserState {users = newVar}
 mainChatRoom = "Lobby"
 
-chat ChatSecurity{..} connection = do
-    roomState <- newRoomState
-    userState <- newUserState
+chat ChatSecurity{..} userState roomState connection =
     forever $ do
         msg <- receiveJsonMessage connection
         case msg of

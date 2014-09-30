@@ -42,8 +42,10 @@ runTestApplication security assertions = do
     input <- newEmptyTMVarIO
     output <- newEmptyTMVarIO
     broadcast <- newEmptyTMVarIO
+    userState <- newUserState
+    roomState <- newRoomState
     let conn = newTestConnection input output broadcast
-    _ <- forkIO (chat security conn)
+    _ <- forkIO (chat security userState roomState conn)
     assertions (input, output, broadcast)
 
 -- pass in authentication method
