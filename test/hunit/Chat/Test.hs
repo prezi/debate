@@ -71,7 +71,7 @@ caseLoginSuccessful = do
     runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN test test\"}"
        (outputData, broadcastData) <- retrieval conn
-       assertEqual "output data" (Just "{\"command\":\"login\",\"channel\":null,\"user\":\"test\"}") outputData
+       assertEqual "output data" (Just "{\"command\":\"login\",\"channel\":\"Lobby\",\"user\":\"test\"}") outputData
 
 caseLogout = do
     runTestApplication allOKSecurity $ \conn@(input,_,_) -> do

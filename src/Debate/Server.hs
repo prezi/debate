@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, DeriveDataTypeable #-}
 module Debate.Server 
 ( runServer
 , Config(..)
@@ -18,9 +18,9 @@ import           Control.Monad.Trans (liftIO)
 import           Control.Concurrent (forkIO, threadDelay)
 import           Control.Concurrent.STM
 import           Control.Concurrent.Async
-import           Control.Exception (fromException, handle)
+import           Control.Exception (fromException, handle, Exception(..), throw)
 import           System.Random (randomRIO)
-import           Data.Maybe (fromMaybe, fromJust)
+import           Data.Maybe (fromMaybe, fromJust, isNothing)
 
 import qualified Network.WebSockets as WS
 import qualified Network.WebSockets.Connection as WS
@@ -38,10 +38,16 @@ import           Data.Aeson
 import qualified Data.Map.Strict as Map
 import           Data.List ((\\))
 import           Data.Traversable (mapM)
+import           Data.Typeable
 
 import           System.Timeout
 
 import           Debate.Types
+
+data DebateException = ClientNotFoundException
+                       deriving (Show, Typeable)
+
+instance Exception DebateException
 
 -- TODO close and cleanup
 -- TODO more error handling
@@ -159,8 +165,10 @@ processXHR sessionId state req respond = do
 msgToApplication :: SessionId -> ServerState -> T.Text -> IO ()
 msgToApplication sessionId ServerState{..} msg = atomically $ do
                    clientMap <- readTVar clients
-                   let client = fromJust $ Map.lookup sessionId clientMap
-                   writeTChan (receiveChan client) msg
+                   let mbClient = Map.lookup sessionId clientMap
+                   case mbClient of
+                      Just client -> writeTChan (receiveChan client) msg
+                      Nothing -> return ()
 
 msgFromApplication :: SessionId -> ServerState -> IO [T.Text]
 msgFromApplication sessionId ServerState{..} = atomically $ do
@@ -180,11 +188,14 @@ broadcast state@ServerState{..} msg = do
 
 -- add msg to TVar as a queue
 addPendingMessages :: SessionId -> ServerState -> T.Text -> IO ()
-addPendingMessages sessionId ServerState{..} msg = atomically $ do
+addPendingMessages sessionId state@ServerState{..} msg = atomically $ do
     clientMap <- readTVar clients
-    let client = fromJust $ Map.lookup sessionId clientMap
-    putTMVar (pendingMessages client) [msg]
-    writeTVar clients $ Map.update (\_ -> Just client) sessionId clientMap
+    let mbClient = Map.lookup sessionId clientMap
+    if isNothing mbClient
+      then throw ClientNotFoundException
+      else do let client = fromJust mbClient
+              putTMVar (pendingMessages client) [msg]
+              writeTVar clients $ Map.update (\_ -> Just client) sessionId clientMap
 
 -- protocol framing see http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
 wsApplication configuration application state pending@WS.PendingConnection {pendingRequest = WS.RequestHead path _ _} = do
