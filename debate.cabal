@@ -113,6 +113,7 @@ test-suite hunit
                      , bytestring
                      , stm
                      , containers
+                     , mtl
   default-language:    Haskell2010
 
 test-suite hlint

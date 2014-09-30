@@ -16,6 +16,7 @@ import Network.Wai
 import Network.Wai.Test
 import qualified Data.Text as T
 import Control.Monad (forever)
+import Control.Monad.Trans (lift)
 import qualified Data.ByteString.Lazy as L
 import Control.Concurrent.STM.TVar
 import GHC.Conc.Sync (atomically)
@@ -40,6 +41,12 @@ broadcastApp connection = do
     forever $ do
         msg <- receiveData connection
         sendTextData connection msg
+
+-- appends received message to user state
+stateApp userState connection = forever $ do
+    msg <- receiveData connection
+    atomically $ readTVar userState >>= writeTVar userState . (msg:)
+    sendTextData connection msg
 
 get path = srequest $ SRequest (setPath defaultRequest path) ""
 post path content = srequest $ SRequest ((setPath defaultRequest path) {requestMethod = "POST", requestHeaders = [("Content-Type","application/x-www-form-urlencoded")]}) (L.fromChunks [content])
@@ -80,6 +87,18 @@ caseXHRReceiveSendMessage = do
         receiveResponse <- post "/foo/000/aeiou/xhr" ""
         assertBody "a[\"test\"]\n" receiveResponse
 
+caseUserState = do
+    state <- emptyState
+    userState <- newTVarIO []
+    flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) (stateApp userState) state) $ do
+        -- prerequisite: open session
+        _ <- post "/foo/000/aeiou/xhr" ""
+        sendResponse <- post "/foo/000/aeiou/xhr_send" "[\"test\"]"
+        receiveResponse <- post "/foo/000/aeiou/xhr" ""
+        -- test if state affected
+        lift $ lift $ do
+          modifiedState <- readTVarIO userState
+          assertEqual "user state modified" ["test"] modifiedState
 caseXHRBadMessage = do
     state <- emptyState
     flip runSession (httpApplication (setPort 8881 (setPrefix"/foo" defaultConfiguration)) echoApp state) $ do
