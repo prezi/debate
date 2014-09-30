@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveGeneric, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, DeriveGeneric #-}
 module Chat.Application (
   chat
 , MessageData(..)
@@ -49,35 +49,43 @@ data Room = Room { roomName :: T.Text
 data UserState = UserState { users :: TVar (Map.Map T.Text [T.Text]) }
 data RoomState = RoomState { rooms :: TVar (Map.Map T.Text Room) }
 
-data MessageData = MessageData { user :: Maybe T.Text
-                               , channel :: Maybe T.Text
-                               , command :: Maybe ChatCommand
-                               , message :: Maybe String }
+data ClientMessage = ClientMessage { user :: Maybe T.Text
+                                   , channel :: Maybe T.Text
+                                   , message :: T.Text }
                      deriving (Show, Generic)
 
+data MessageData = MessageData { messageDataUser :: T.Text
+                               , messageDataChannel :: T.Text
+                               , messageDataMessage :: String }
+                 | CommandMsg { commandMsgUser :: Maybe T.Text
+                              , commandMsgChannel :: Maybe T.Text
+                              , command :: ChatCommand }
+                     deriving Show
 
 
-data ChatCommand = LoginCommand | LogoutCommand | JoinCommand | MessageCommand
+
+data ChatCommand = LoginCommand | LogoutCommand | JoinCommand | MessageCommand | LoginRequired | LoginFailed
                    deriving (Show)
 
-instance FromJSON MessageData
-instance ToJSON MessageData
+instance FromJSON ClientMessage
 
-instance FromJSON ChatCommand where
-  parseJSON (Object o) = case HML.lookup (T.pack "command") o of
-                           Just (String t) -> fromString (TL.unpack (TL.fromStrict t))
-                           _ -> empty
-        where fromString "login" = pure LoginCommand
-              fromString "logout" = pure LogoutCommand
-              fromString "join" = pure JoinCommand
-              fromString "msg" = pure MessageCommand
-              fromString _ = empty
+instance ToJSON MessageData where
+  toJSON (MessageData user channel message) =
+    object [ "user" .= user
+           , "channel" .= channel
+           , "message" .= message ]
+  toJSON (CommandMsg mbUser mbChannel command) =
+    object [ "user" .= toJSON mbUser
+           , "channel" .= toJSON mbChannel
+           , "command" .= toJSON command ]
 
 instance ToJSON ChatCommand where
   toJSON LoginCommand = String "login"
   toJSON LogoutCommand = String "logout"
   toJSON JoinCommand = String "join"
   toJSON MessageCommand = String "msg"
+  toJSON LoginFailed = String "loginFailed"
+  toJSON LoginRequired = String "loginRequired"
 
 newRoomState = do newVar <- atomically $ newTVar (Map.insert mainChatRoom (Room mainChatRoom []) Map.empty)
                   return RoomState {rooms = newVar}
@@ -92,8 +100,8 @@ chat ChatSecurity{..} userState roomState connection =
           Login name pass -> do credentials <- checkCredentials name pass
                                 case credentials of
                                     Just user -> void (loggedIn user connection roomState userState checkAccess)
-                                    Nothing   -> sendTextData connection "login failed"
-          _               -> sendTextData connection (toJsonMessage MessageData {message = Just "Please log in first by doing LOGIN user passwd", channel = Nothing, user = Nothing, command = Nothing})
+                                    Nothing   -> sendTextData connection (toJsonMessage CommandMsg {commandMsgChannel = Nothing, commandMsgUser = Nothing, command = LoginFailed })
+          _               -> sendTextData connection (toJsonMessage CommandMsg {commandMsgChannel = Nothing, commandMsgUser = Nothing, command = LoginRequired})
 
 -- TODO: only broadcast to logged in users!
 -- TODO: check if user name in message matches username in state
@@ -101,13 +109,13 @@ loggedIn userName connection roomState userState checkAccess = do
         let user = User (T.pack userName) connection
         addUserToRoom roomState userState mainChatRoom user
         warningM "Chat.Application" (userName ++ " just logged in")
-        let loginMsg = MessageData { user = Just $ T.pack userName, channel = Nothing, command = Just LoginCommand, message = Nothing }
+        let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LoginCommand }
         sendToRoom roomState mainChatRoom loginMsg
         runMaybeT $ forever $ lift $ do
             msg <- receiveJsonMessage connection
             print msg
             case msg of
-              Logout ->  do let logoutMsg = MessageData { user = Just $ T.pack userName, channel = Nothing, command = Just LogoutCommand, message = Nothing }
+              Logout ->  do let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
                             sendToRoom roomState mainChatRoom logoutMsg
                             warningM "Chat.Application" (userName ++ " just logged out")
                             removeUserFromAll roomState userState user
@@ -115,7 +123,7 @@ loggedIn userName connection roomState userState checkAccess = do
               Join roomName -> do   access <- checkAccess userName roomName
                                     case access of
                                         Just userName -> do let tRoomName = T.pack roomName
-                                                                joinedMsg = MessageData { user = Just $ T.pack userName, channel = Just tRoomName, command = Just JoinCommand, message = Nothing }
+                                                                joinedMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = JoinCommand }
                                                             addRoomIfNew roomState tRoomName
                                                             addUserToRoom roomState userState tRoomName user
                                                             sendToRoom roomState tRoomName joinedMsg
@@ -123,9 +131,9 @@ loggedIn userName connection roomState userState checkAccess = do
               Message roomName str -> do access <- checkAccess userName (T.unpack roomName)
                                          -- todo check if user joined as well
                                          case access of
-                                           Just userName -> do let chatMsg = MessageData { user = Just $ T.pack userName, channel = Just roomName, command = Just MessageCommand, message = Just str}
-                                                               sendToRoom roomState roomName chatMsg
-                                           Nothing -> warningM "Chat.Application" (userName ++ " attempted to post to " ++ T.unpack roomName)
+                                            Just userName -> do let chatMsg = MessageData { messageDataUser = T.pack userName, messageDataChannel = roomName, messageDataMessage = str}
+                                                                sendToRoom roomState roomName chatMsg
+                                            Nothing -> warningM "Chat.Application" (userName ++ " attempted to post to " ++ T.unpack roomName)
               _  -> return () -- no action, potentially logging
 
 breakLoop = mzero
@@ -133,21 +141,22 @@ breakLoop = mzero
 receiveJsonMessage connection = do
             received <- receiveData connection
             debugM "Chat.Application" $ T.unpack received
-            parseJsonMessage received
+            return $ parseJsonMessage received
 
+-- if not valid json: invalid msg
+-- if valid json but message not parsed : chat msg
+-- else: parsed command msg
 parseJsonMessage received = do
-            let mbMsgData = decodeStrict (encodeUtf8 received) :: Maybe MessageData
-                mbMsg = maybe Nothing message mbMsgData
-                messageData = fromMaybe emptyMessageData mbMsgData
-                msg = maybe (Right $ Invalid "no message") parseMessage mbMsg -- message is Maybe String
-                result = either (\_ -> toChatMessage messageData) id msg -- if parse failed then probably chat msg
-            return result
+            let mbMsgData = decodeStrict (encodeUtf8 received) :: Maybe ClientMessage
+            case mbMsgData of
+                Just clientMessage -> do let parsedMsg = parseMessage (T.unpack $ message clientMessage)
+                                         either (toChatMessage clientMessage) id parsedMsg
+                Nothing -> Invalid "json parsing error"
 
-emptyMessageData = MessageData {channel = Nothing, user = Nothing, command = Nothing, message = Nothing}
 
-toChatMessage json = if isNothing(channel json) || isNothing (message json)
-                       then Invalid "empty message"
-                       else Message (fromJust $ channel json) (T.unpack (fromJust $ user json) ++ ": " ++ fromJust (message json))
+toChatMessage json _ = if isNothing (channel json) || isNothing (user json)
+                         then Invalid "empty message"
+                         else Message (fromJust $ channel json) (T.unpack (fromJust $ user json) ++ ": " ++ T.unpack (message json))
 
 toJsonMessage = decodeUtf8 . toStrict . encode
 
