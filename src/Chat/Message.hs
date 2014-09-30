@@ -22,13 +22,13 @@ data ServerMessage =
   Login String String |
   Join String |
   Message RoomName String |
-  Part String |
+  Leave String |
   Logout |
   Invalid String
   deriving (Read, Show, Eq)
 
 chatDef :: Token.LanguageDef st
-chatDef = emptyDef { Token.reservedNames = ["LOGIN", "LOGOUT", "JOIN"]
+chatDef = emptyDef { Token.reservedNames = ["LOGIN", "LOGOUT", "JOIN", "LEAVE"]
                    , Token.caseSensitive = False }
 
 lexer = Token.makeTokenParser chatDef
@@ -41,6 +41,7 @@ messageParser =
       try parseLogin
   <|> try parseLogout
   <|> try parseJoin
+  <|> try parseLeave
 
 parseLogin = Login <$>
                 (reserved "LOGIN"  *>
@@ -52,6 +53,10 @@ parseLogout = reserved "LOGOUT" >> return Logout
 
 parseJoin = Join <$>
               (reserved "JOIN"  *>
+              many (noneOf " "))
+
+parseLeave = Leave <$>
+              (reserved "LEAVE"  *>
               many (noneOf " "))
 
 parseMessage :: String -> Either ParseError ServerMessage

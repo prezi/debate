@@ -12,17 +12,13 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Class (lift)
 import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM (atomically)
-import Control.Applicative (pure, empty)
 import Data.Maybe (fromMaybe, fromJust, isNothing)
 import Data.Aeson (FromJSON(..), ToJSON(..), decodeStrict, encode, Value(..), (.=), object)
 import GHC.Generics (Generic) -- generics
 import Chat.Message
 import qualified Data.Map.Strict as Map
 import qualified Data.Text       as T
-import qualified Data.Text.Lazy  as TL
-import qualified Data.ByteString as B
 import Data.ByteString.Lazy (toStrict)
-import qualified Data.HashMap.Lazy as HML
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 
 import System.Log.Logger
@@ -64,7 +60,13 @@ data MessageData = MessageData { messageDataUser :: T.Text
 
 
 
-data ChatCommand = LoginCommand | LogoutCommand | JoinCommand | MessageCommand | LoginRequired | LoginFailed
+data ChatCommand = LoginCommand
+                 | LogoutCommand
+                 | JoinCommand
+                 | LeaveCommand
+                 | MessageCommand
+                 | LoginRequired
+                 | LoginFailed
                    deriving (Show)
 
 instance FromJSON ClientMessage
@@ -84,6 +86,7 @@ instance ToJSON ChatCommand where
   toJSON LoginCommand = String "login"
   toJSON LogoutCommand = String "logout"
   toJSON JoinCommand = String "join"
+  toJSON LeaveCommand = String "leave"
   toJSON MessageCommand = String "msg"
   toJSON LoginFailed = String "loginFailed"
   toJSON LoginRequired = String "loginRequired"
@@ -128,7 +131,13 @@ loggedIn userName connection roomState userState checkAccess = do
                                                             addRoomIfNew roomState tRoomName
                                                             addUserToRoom roomState userState tRoomName user
                                                             sendToRoom roomState tRoomName joinedMsg
+                                                            warningM "Chat.Application" (userName ++ " joined " ++ roomName)
                                         Nothing -> warningM "Chat.Application" (userName ++ " attempted to join " ++ roomName)
+              Leave roomName -> do let tRoomName = T.pack roomName
+                                       leaveMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = LeaveCommand }
+                                   sendToRoom roomState tRoomName leaveMsg
+                                   removeUserFromRoom roomState userState user tRoomName
+                                   warningM "Chat.Application" (userName ++ " left " ++ roomName)
               Message roomName str -> do access <- checkAccess userName (T.unpack roomName)
                                          -- todo check if user joined as well
                                          case access of
