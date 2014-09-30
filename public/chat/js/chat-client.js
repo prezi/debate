@@ -29,6 +29,13 @@ $( document ).ready(function() {
         chatbox.append($("<div id=\"" + channel + "-chat\">"))
     }
 
+    var removeChannel = function(channel) {
+        channels.find("#" + channel).remove();
+        var i = channelList.indexOf(channel);
+        if (i > -1) { channelList.splice(i, 1); }
+        chatbox.find("#" + channel + "-chat").remove();
+    }
+
     // TODO invisible panels for not current channels which become visible
     var setCurrentChannel = function(channel) {
         currentChannel = channel;
@@ -102,7 +109,7 @@ $( document ).ready(function() {
                   print("Please login first with LOGIN user password");
                   break;
               case "logout":
-                  channelMessage(mainChatRoom, message.user + " just logged out");
+                  channelMessage(mainChatRoom, message.user + " just quit");
                   console.log(loggedIn, user == message.user, user, message.user);
                   if (loggedIn && user == message.user) { reinitialize(); }
                   break;
@@ -110,6 +117,11 @@ $( document ).ready(function() {
                   addChannel(message.channel)
                   setCurrentChannel(message.channel)
                   channelMessage(message.channel, user + " just joined the channel");
+                  break;
+              case "leave":
+                  setCurrentChannel(mainChatRoom)
+                  removeChannel(message.channel)
+                  channelMessage(message.channel, user + " just left the channel");
                   break;
               case "msg":
                   channelMessage(message.channel, message.message);
