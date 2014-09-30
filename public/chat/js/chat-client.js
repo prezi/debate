@@ -8,32 +8,41 @@ $( document ).ready(function() {
     var user = null;
     var channelList = [];
     var currentChannel = null;
+    var currentChat = $('#chatbox');
     var loggedIn = false;
     var mainChatRoom = "Lobby";
 
     var print = function(m, p) {
         p = (p === undefined) ? '' : JSON.stringify(p);
-        chatbox.append($("<code>").text(m + ' ' + p));
-        chatbox.append($("<br>"));
-        chatbox.scrollTop(chatbox.scrollTop()+10000);
+        currentChat.append($("<code>").text(m + ' ' + p));
+        currentChat.append($("<br>"));
+        currentChat.scrollTop(chatbox.scrollTop()+10000);
     };
 
     var addChannel = function(channel) {
         channels.append($("<li id=\"" + channel + "\">").text(channel));
+        channels.find("#" + channel).click(function() { setCurrentChannel(channel); });
         channelList.push(channel);
+        chatbox.append($("<div id=\"" + channel + "-chat\">"))
     }
 
     // TODO invisible panels for not current channels which become visible
     var setCurrentChannel = function(channel) {
         currentChannel = channel;
+        // channel list on the right
         channels.find("li").removeClass("current");
         channels.find("#" + channel).addClass("current");
+        // chatbox for this channel
+        chatbox.children().hide();
+        currentChat = chatbox.find("#" + channel + "-chat");
+        currentChat.show();
     }
 
     var removeChannels = function() {
         console.log('removing channels');
         channels.empty();
         channelList = [];
+        chatbox.empty();
     }
 
     // TODO use invisible pannels if in channel list so post anyway
@@ -56,6 +65,7 @@ $( document ).ready(function() {
         user = null;
         loggedIn = false;
         currentChannel = null;
+        currentChat = chatbox;
     }
 
     var reconnect = function() {
