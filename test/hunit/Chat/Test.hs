@@ -25,6 +25,7 @@ chatSuite =
                                , testCase "logout" caseLogout ]
   , testGroup "chatrooms" [ testCase "chat in lobby" caseChatInLobby
                           , testCase "join chat room" caseJoinChatroom
+                          , testCase "second user joins chat room" caseJoinChatroomTwoUsers
                           , testCase "leave chat room" caseLeaveChatroom ]
   ]
 
@@ -39,12 +40,10 @@ newTestConnection input output broadcast = SockConnection { receiveData = atomic
 type TestConnection = (TMVar T.Text, TMVar T.Text, TMVar T.Text)
 
 
-runTestApplication security assertions = do
+runTestApplication security userState roomState assertions = do
     input <- newEmptyTMVarIO
     output <- newEmptyTMVarIO
     broadcast <- newEmptyTMVarIO
-    userState <- newUserState
-    roomState <- newRoomState
     let conn = newTestConnection input output broadcast
     _ <- forkIO (chat security userState roomState conn)
     assertions (input, output, broadcast)
@@ -59,7 +58,8 @@ sendText input text = atomically $ putTMVar input text
 -- 2.5 seconds should be enough to retrieve anything
 retrieval (input, output, broadcast) = do
     retrievalLoop output broadcast 10
-    where retrievalLoop _ _ 0 = return (Nothing, Nothing)
+    where retrievalLoop _ _ 0 = do putStrLn "** message retrieval giving up **"
+                                   return (Nothing, Nothing)
           retrievalLoop output broadcast n = do
             outputData <- atomically $ tryTakeTMVar output
             broadcastData <- atomically $ tryTakeTMVar broadcast
@@ -69,37 +69,69 @@ retrieval (input, output, broadcast) = do
               else return (outputData, broadcastData)
 
 caseLoginSuccessful = do
-    runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
+    userState <- newUserState
+    roomState <- newRoomState
+    runTestApplication allOKSecurity userState roomState $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN test test\"}"
        (outputData, broadcastData) <- retrieval conn
        assertEqual "output data" (Just "{\"command\":\"login\",\"channel\":\"Lobby\",\"user\":\"test\"}") outputData
 
 caseLogout = do
-    runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
+    userState <- newUserState
+    roomState <- newRoomState
+    runTestApplication allOKSecurity userState roomState $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN test test\"}"
        _ <- retrieval conn
-       sendText input "{\"channel\": \"Lobby\", \"message\": \"LOGOUT\"}"
+       sendText input "{\"user\": \"test\", \"channel\": \"Lobby\", \"message\": \"LOGOUT\"}"
        (outputData, broadcastData) <- retrieval conn
        assertEqual "output data" (Just "{\"command\":\"logout\",\"channel\":null,\"user\":\"test\"}") outputData
 
 caseChatInLobby = do
-    runTestApplication allOKSecurity $ \conn1@(input,_,_) -> do
+    userState <- newUserState
+    roomState <- newRoomState
+    runTestApplication allOKSecurity userState roomState $ \conn@(input,_,_) -> do
       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
-      _ <- retrieval conn1
+      _ <- retrieval conn
       sendText input "{\"message\":\"I say something\", \"user\": \"user1\", \"channel\":\"Lobby\"}"
-      (outputData, broadcastData) <- retrieval conn1
+      (outputData, broadcastData) <- retrieval conn
       assertEqual "incoming data" (Just "{\"command\":\"msg\",\"channel\":\"Lobby\",\"user\":\"user1\",\"message\":\"user1: I say something\"}") outputData
 
 caseJoinChatroom = do
-    runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
+    userState <- newUserState
+    roomState <- newRoomState
+    runTestApplication allOKSecurity userState roomState $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN user1 pass1\"}"
        _ <- retrieval conn
        sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
        (outputData, _) <- retrieval conn
        assertEqual "outputData" (Just "{\"command\":\"join\",\"channel\":\"room1\",\"user\":\"user1\"}") outputData
 
+caseJoinChatroomTwoUsers = do
+    userState <- newUserState
+    roomState <- newRoomState
+    runTestApplication allOKSecurity userState roomState $ \conn1@(input1,_,_) -> do
+       sendText input1 "{\"message\": \"LOGIN user1 pass1\"}"
+       _ <- retrieval conn1
+       runTestApplication allOKSecurity userState roomState $ \conn2@(input2,_,_) -> do
+            sendText input2 "{\"message\": \"LOGIN user2 pass2\"}"
+            _ <- retrieval conn1
+            _ <- retrieval conn2
+            sendText input1 "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
+            putStrLn " you are ere 1"
+            _ <- retrieval conn1
+            putStrLn " you are ere 2"
+            sendText input2 "{\"user\": \"user2\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
+            putStrLn " you are ere 3"
+            _ <- retrieval conn2
+            putStrLn " you are ere 4"
+            (outputData, _) <- retrieval conn1
+            putStrLn " you are ere 5"
+            assertEqual "outputData" (Just "{\"command\":\"join\",\"channel\":\"room1\",\"user\":\"user2\"}") outputData
+
 caseLeaveChatroom = do
-    runTestApplication allOKSecurity $ \conn@(input,_,_) -> do
+    userState <- newUserState
+    roomState <- newRoomState
+    runTestApplication allOKSecurity userState roomState $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN user1 pass1\"}"
        _ <- retrieval conn
        sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
