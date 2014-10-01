@@ -99,7 +99,7 @@ mainChatRoom = "Lobby"
 
 chat ChatSecurity{..} userState roomState connection =
     forever $ do
-        msg <- receiveJsonMessage connection
+        (_, msg) <- receiveJsonMessage connection
         case msg of
           Login name pass -> do credentials <- checkCredentials name pass
                                 case credentials of
@@ -116,36 +116,39 @@ loggedIn userName connection roomState userState checkAccess = do
         let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = LoginCommand }
         sendToRoom roomState mainChatRoom loginMsg
         runMaybeT $ forever $ lift $ do
-            msg <- receiveJsonMessage connection
-            print msg
-            case msg of
-              Logout ->  do let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
-                            sendToRoom roomState mainChatRoom logoutMsg
-                            warningM "Chat.Application" (userName ++ " just logged out")
-                            removeUserFromAll roomState userState user
-                            breakLoop  -- leave loggedIn loop
-              Join roomName -> do   access <- checkAccess userName roomName
-                                    case access of
-                                        Just userName -> do let tRoomName = T.pack roomName
-                                                                joinedMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = JoinCommand }
-                                                            addRoomIfNew roomState tRoomName
-                                                            addUserToRoom roomState userState tRoomName user
-                                                            sendToRoom roomState tRoomName joinedMsg
-                                                            warningM "Chat.Application" (userName ++ " joined " ++ roomName)
-                                        Nothing -> warningM "Chat.Application" (userName ++ " attempted to join " ++ roomName)
-              Leave roomName -> do let tRoomName = T.pack roomName
-                                       leaveMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = LeaveCommand }
-                                   -- TODO cannot leave mainChatRoom
-                                   sendToRoom roomState tRoomName leaveMsg
-                                   removeUserFromRoom roomState userState user tRoomName
-                                   warningM "Chat.Application" (userName ++ " left " ++ roomName)
-              Message roomName str -> do access <- checkAccess userName (T.unpack roomName)
-                                         -- todo check if user joined as well
-                                         case access of
-                                            Just userName -> do let chatMsg = MessageData { messageDataUser = T.pack userName, messageDataChannel = roomName, messageDataMessage = str}
-                                                                sendToRoom roomState roomName chatMsg
-                                            Nothing -> warningM "Chat.Application" (userName ++ " attempted to post to " ++ T.unpack roomName)
-              _  -> return () -- no action, potentially logging
+            (mbUsr, msg) <- receiveJsonMessage connection
+            when (mbUsr == Just (T.pack userName)) (sendIntendedMessage msg userName roomState userState user checkAccess) -- only send if you are the intended recipient.
+
+
+sendIntendedMessage msg userName roomState userState user checkAccess =
+        case msg of
+            Logout ->  do let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
+                          sendToRoom roomState mainChatRoom logoutMsg
+                          warningM "Chat.Application" (userName ++ " just logged out")
+                          removeUserFromAll roomState userState user
+                          breakLoop  -- leave loggedIn loop
+            Join roomName -> do access <- checkAccess userName roomName
+                                case access of
+                                    Just userName -> do let tRoomName = T.pack roomName
+                                                            joinedMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = JoinCommand }
+                                                        addRoomIfNew roomState tRoomName
+                                                        addUserToRoom roomState userState tRoomName user
+                                                        sendToRoom roomState tRoomName joinedMsg
+                                                        warningM "Chat.Application" (userName ++ " joined " ++ roomName)
+                                    Nothing -> warningM "Chat.Application" (userName ++ " attempted to join " ++ roomName)
+            Leave roomName -> do let tRoomName = T.pack roomName
+                                     leaveMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = LeaveCommand }
+                                 -- TODO cannot leave mainChatRoom
+                                 sendToRoom roomState tRoomName leaveMsg
+                                 removeUserFromRoom roomState userState user tRoomName
+                                 warningM "Chat.Application" (userName ++ " left " ++ roomName)
+            Message roomName str -> do access <- checkAccess userName (T.unpack roomName)
+                                       -- todo check if user joined as well
+                                       case access of
+                                           Just userName -> do let chatMsg = MessageData { messageDataUser = T.pack userName, messageDataChannel = roomName, messageDataMessage = str}
+                                                               sendToRoom roomState roomName chatMsg
+                                           Nothing -> warningM "Chat.Application" (userName ++ " attempted to post to " ++ T.unpack roomName)
+            _  -> return () -- no action, potentially logging
 
 breakLoop = mzero
 
@@ -161,13 +164,15 @@ parseJsonMessage received = do
             let mbMsgData = decodeStrict (encodeUtf8 received) :: Maybe ClientMessage
             case mbMsgData of
                 Just clientMessage -> do let parsedMsg = parseMessage (T.unpack $ message clientMessage)
-                                         either (toChatMessage clientMessage) id parsedMsg
-                Nothing -> Invalid "json parsing error"
+                                         either (toChatMessage clientMessage) ((,) (user clientMessage)) parsedMsg
+                Nothing -> (Nothing, Invalid "json parsing error")
 
 
 toChatMessage json _ = if isNothing (channel json) || isNothing (user json)
-                         then Invalid "empty message"
-                         else Message (fromJust $ channel json) (T.unpack (fromJust $ user json) ++ ": " ++ T.unpack (message json))
+                         then (Nothing, Invalid "empty message")
+                         else do let ch = fromJust $ channel json
+                                     usr = fromJust $ user json
+                                 (user json, Message ch (T.unpack usr ++ ": " ++ T.unpack (message json)))
 
 toJsonMessage = decodeUtf8 . toStrict . encode
 
