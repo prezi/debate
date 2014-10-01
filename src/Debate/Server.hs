@@ -195,7 +195,6 @@ addPendingMessages sessionId state@ServerState{..} msg = atomically $ do
       then throw ClientNotFoundException
       else do let client = fromJust mbClient
               putTMVar (pendingMessages client) [msg]
-              writeTVar clients $ Map.update (\_ -> Just client) sessionId clientMap
 
 -- protocol framing see http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
 wsApplication configuration application state pending@WS.PendingConnection {pendingRequest = WS.RequestHead path _ _} = do
