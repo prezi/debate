@@ -110,18 +110,21 @@ $( document ).ready(function() {
                   break;
               case "logout":
                   channelMessage(mainChatRoom, message.user + " just quit");
-                  console.log(loggedIn, user == message.user, user, message.user);
                   if (loggedIn && user == message.user) { reinitialize(); }
                   break;
               case "join":
-                  addChannel(message.channel)
-                  setCurrentChannel(message.channel)
-                  channelMessage(message.channel, user + " just joined the channel");
+                  if (message.user == user) {
+                    addChannel(message.channel)
+                    setCurrentChannel(message.channel)
+                  }
+                  channelMessage(message.channel, message.user + " just joined the channel");
                   break;
               case "leave":
-                  setCurrentChannel(mainChatRoom)
-                  removeChannel(message.channel)
-                  channelMessage(message.channel, user + " just left the channel");
+                  if (message.user == user) {
+                    setCurrentChannel(mainChatRoom)
+                    removeChannel(message.channel)
+                  }
+                  channelMessage(message.channel, message.user + " just left the channel");
                   break;
               case "msg":
                   channelMessage(message.channel, message.message);
@@ -140,7 +143,6 @@ $( document ).ready(function() {
         // send messages: identify, join room, leave room, say something
         form.submit(function() {
             // data to be sent includes: the user, channel and the message
-            console.log(user, currentChannel)
             sockjs.send(JSON.stringify(messageJSON(user, currentChannel, input.val())));
             input.val('');
             return false;
