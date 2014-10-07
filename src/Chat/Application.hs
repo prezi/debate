@@ -8,7 +8,7 @@ module Chat.Application (
 ) where
 
 import Control.Monad (mzero, forever, void, when, guard)
-import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Either
 import Control.Monad.Trans.Class (lift)
 import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM (atomically)
@@ -116,18 +116,23 @@ loggedIn userName connection roomState userState checkAccess = do
         warningM "Chat.Application" (userName ++ " just logged in")
         let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = LoginCommand }
         sendToRoom roomState userState mainChatRoom loginMsg
-        runMaybeT $ forever $ lift $ do
-            (mbUsr, msg) <- receiveJsonMessage connection
-            when (mbUsr == Just (T.pack userName)) (sendIntendedMessage msg userName roomState userState user checkAccess) -- only send if you are the intended recipient.
+        runEitherT $ forever $ do
+            (mbUsr, msg) <- lift $ receiveJsonMessage connection
+            case msg of
+              Logout -> when (mbUsr == Just (T.pack userName)) $ do
+                          lift $ logout userName roomState userState user
+                          left () -- exit
+              _      -> when (mbUsr == Just (T.pack userName)) (lift $ sendIntendedMessage msg userName roomState userState user checkAccess) -- only send if you are the intended recipient.
+
+logout userName roomState userState user = do
+        let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
+        sendToRoom roomState userState mainChatRoom logoutMsg
+        warningM "Chat.Application" (userName ++ " just logged out")
+        removeUserFromAll roomState userState user
 
 
 sendIntendedMessage msg userName roomState userState user checkAccess =
         case msg of
-            Logout ->  do let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
-                          sendToRoom roomState userState mainChatRoom logoutMsg
-                          warningM "Chat.Application" (userName ++ " just logged out")
-                          removeUserFromAll roomState userState user
-                          breakLoop  -- leave loggedIn loop
             Join roomName -> do access <- checkAccess userName roomName
                                 case access of
                                     Just userName -> do let tRoomName = T.pack roomName
@@ -150,8 +155,6 @@ sendIntendedMessage msg userName roomState userState user checkAccess =
                                                                sendToRoom roomState userState roomName chatMsg
                                            Nothing -> warningM "Chat.Application" (userName ++ " attempted to post to " ++ T.unpack roomName)
             _  -> return () -- no action, potentially logging
-
-breakLoop = mzero
 
 receiveJsonMessage connection = do
             received <- receiveData connection
