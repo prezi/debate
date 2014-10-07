@@ -117,15 +117,10 @@ caseJoinChatroomTwoUsers = do
             _ <- retrieval conn1
             _ <- retrieval conn2
             sendText input1 "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
-            putStrLn " you are ere 1"
             _ <- retrieval conn1
-            putStrLn " you are ere 2"
             sendText input2 "{\"user\": \"user2\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
-            putStrLn " you are ere 3"
             _ <- retrieval conn2
-            putStrLn " you are ere 4"
             (outputData, _) <- retrieval conn1
-            putStrLn " you are ere 5"
             assertEqual "outputData" (Just "{\"command\":\"join\",\"channel\":\"room1\",\"user\":\"user2\"}") outputData
 
 caseLeaveChatroom = do
