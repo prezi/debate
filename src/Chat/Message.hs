@@ -48,16 +48,19 @@ parseLogin = Login <$>
                 many (noneOf " ")) <*>
                 (whiteSpace *>
                 many (noneOf " "))
+                <* eof
 
-parseLogout = reserved "LOGOUT" >> return Logout
+parseLogout = reserved "LOGOUT" <* eof >> return Logout
 
 parseJoin = Join <$>
               (reserved "JOIN"  *>
               many (noneOf " "))
+              <* eof
 
 parseLeave = Leave <$>
               (reserved "LEAVE"  *>
               many (noneOf " "))
+              <* eof
 
 parseMessage :: String -> Either ParseError ServerMessage
 parseMessage = parse messageParser "message didn't parse successfully"
