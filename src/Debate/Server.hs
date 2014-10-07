@@ -10,12 +10,13 @@ module Debate.Server
 , setPort
 , setPrefix
 , setTransportWhitelist
+, DebateException(..)
 )
 where
 
 import           Control.Monad (forever)
 import           Control.Monad.Trans (liftIO)
-import           Control.Concurrent (forkIO, threadDelay)
+import           Control.Concurrent (forkIO, threadDelay, killThread)
 import           Control.Concurrent.STM
 import           Control.Concurrent.Async
 import           Control.Exception (fromException, handle, Exception(..), throw)
@@ -45,7 +46,7 @@ import           System.Timeout
 import           Debate.Types
 
 data DebateException = ClientNotFoundException
-                       deriving (Show, Typeable)
+                       deriving (Eq, Show, Typeable)
 
 instance Exception DebateException
 
@@ -210,18 +211,22 @@ newWebsocketClient application state path connection = do
     receive <- atomically newTChan
     addClient state sessionId receive
     WS.sendTextData connection (T.pack "o") -- sockjs client expects an "o" message to open socket
-    _ <- forkIO $ heartbeat connection
-    _ <- forkIO $ runApplication application sessionId state receive
-    race_ (receiveLoop receive connection state sessionId) (sendLoop sessionId state connection)
+    heartThreadId <- forkIO $ heartbeat connection
+    appThreadId   <- forkIO $ runApplication application sessionId state receive
+    race_ (receiveLoop receive connection state sessionId appThreadId heartThreadId) (sendLoop sessionId state connection)
     return ()
 
-receiveLoop receive connection state sessionId = handle (catchDisconnect state sessionId) $
+receiveLoop receive connection state sessionId appThreadId heartThreadId = handle (catchDisconnect state sessionId) $
     forever $ do
        msg <- WS.receiveData connection :: IO T.Text
        atomically $ writeTChan receive $ msgFromFrame msg
-     where catchDisconnect state sessionId e = case fromException e of
-            Just WS.ConnectionClosed -> removeClient state sessionId
-            _ -> return ()
+     where catchDisconnect state sessionId e = do
+            case fromException e of
+                Just WS.ConnectionClosed -> do removeClient state sessionId
+                                               killThread appThreadId
+                                               killThread heartThreadId
+                                               return ()
+                _ -> return ()
 sendLoop sessionId state connection =
     forever $ do
        msg <- msgFromApplication sessionId state
