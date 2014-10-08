@@ -108,6 +108,9 @@ $( document ).ready(function() {
               case "loginRequired":
                   print("Please login first with LOGIN user password");
                   break;
+              case "alreadyLoggedIn":
+                  channelMessage(mainChatRoom, "you're already logged in");
+                  break;
               case "logout":
                   channelMessage(mainChatRoom, message.user + " just quit");
                   if (loggedIn && user == message.user) { reinitialize(); }
