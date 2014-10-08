@@ -83,9 +83,7 @@ chat ChatSecurity{..} chatState connection =
           Login name pass -> do credentials <- checkCredentials name pass
                                 case credentials of
                                     Just user -> do void (loggedIn user connection chatState checkAccess)
-                                                    putStrLn "back to outer loop"
                                                     chstate <- readTVarIO chatState
-                                                    putStrLn $ "chstate " ++ show chstate
                                     Nothing   -> sendTextData connection (toJsonMessage CommandMsg {commandMsgChannel = Nothing, commandMsgUser = Nothing, command = LoginFailed })
           _               -> sendTextData connection (toJsonMessage CommandMsg {commandMsgChannel = Nothing, commandMsgUser = Nothing, command = LoginRequired})
 
@@ -95,9 +93,7 @@ loggedIn userName connection chatState checkAccess = do
         let user = User (T.pack userName) connection
         saveTVar chatState $ addUserToRoom mainChatRoom user
         warningM "Chat.Application" (userName ++ " just logged in")
-        putStrLn "now in inner loop"
         chatstate <- readTVarIO chatState
-        putStrLn $ "chatState " ++ show chatstate
         let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = LoginCommand }
         sendToRoom chatState mainChatRoom loginMsg
         runEitherT $ forever $ do
