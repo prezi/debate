@@ -96,7 +96,7 @@ caseChatInLobby = do
     runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
       _ <- retrieval conn
-      sendText input "{\"message\":\"I say something\", \"user\": \"user1\", \"channel\":\"Lobby\"}"
+      sendText input "{\"message\":\"Msg I say something\", \"user\": \"user1\", \"channel\":\"Lobby\"}"
       (outputData, broadcastData) <- retrieval conn
       assertEqual "incoming data" (Just "{\"command\":\"msg\",\"channel\":\"Lobby\",\"user\":\"user1\",\"message\":\"user1: I say something\"}") outputData
 

@@ -7,7 +7,7 @@ module Chat.Message (
 
 import qualified Data.Text as T
 import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Error
+import Text.ParserCombinators.Parsec.Error hiding (Message)
 import Text.ParserCombinators.Parsec.Language
 import Control.Applicative ((<$>), (<*>), (*>), (<*))
 import qualified Text.Parsec.Token as Token
@@ -21,14 +21,14 @@ data Room = Room { name :: RoomName }
 data ServerMessage =
   Login String String |
   Join String |
-  Message RoomName String |
+  Message String |
   Leave String |
   Logout |
   Invalid String
   deriving (Read, Show, Eq)
 
 chatDef :: Token.LanguageDef st
-chatDef = emptyDef { Token.reservedNames = ["LOGIN", "LOGOUT", "JOIN", "LEAVE"]
+chatDef = emptyDef { Token.reservedNames = ["LOGIN", "LOGOUT", "JOIN", "LEAVE", "MSG"]
                    , Token.caseSensitive = False }
 
 lexer = Token.makeTokenParser chatDef
@@ -42,6 +42,7 @@ messageParser =
   <|> try parseLogout
   <|> try parseJoin
   <|> try parseLeave
+  <|> try parseMsg
 
 parseLogin = Login <$>
                 (reserved "LOGIN"  *>
@@ -60,6 +61,12 @@ parseJoin = Join <$>
 parseLeave = Leave <$>
               (reserved "LEAVE"  *>
               many (noneOf " "))
+              <* eof
+
+parseMsg = Message <$>
+             (reserved "MSG"  *>
+              whiteSpace *>
+              many anyChar)
               <* eof
 
 parseMessage :: String -> Either ParseError ServerMessage

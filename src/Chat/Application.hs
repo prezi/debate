@@ -11,7 +11,7 @@ import Control.Monad.Trans.Either
 import Control.Monad.Trans.Class (lift)
 import Control.Concurrent.STM.TVar
 import Control.Exception (tryJust)
-import Data.Maybe (fromJust, isNothing)
+import Data.Maybe (fromJust, isNothing, fromMaybe)
 import Data.Aeson (FromJSON(..), ToJSON(..), decodeStrict, encode, Value(..), (.=), object)
 import GHC.Generics (Generic) -- generics
 import Chat.Message
@@ -80,7 +80,7 @@ mainChatRoom = "Lobby"
 
 chat ChatSecurity{..} chatState connection =
     forever $ do
-        (_, msg) <- receiveJsonMessage connection
+        (_, _, msg) <- receiveJsonMessage connection
         case msg of
           Login name pass -> do credentials <- checkCredentials name pass
                                 case credentials of
@@ -98,12 +98,12 @@ loggedIn userName connection chatState checkAccess = do
         let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = LoginCommand }
         sendToRoom chatState mainChatRoom loginMsg
         runEitherT $ forever $ do
-            (mbUsr, msg) <- lift $ receiveJsonMessage connection
+            (mbUsr, mbRoom, msg) <- lift $ receiveJsonMessage connection
             case msg of
               Logout -> when (mbUsr == Just (T.pack userName)) $ do
                           lift $ logout userName chatState user
                           left () -- exit
-              _      -> when (mbUsr == Just (T.pack userName)) (lift $ sendIntendedMessage msg userName chatState user checkAccess) -- only send if you are the intended recipient.
+              _      -> when (mbUsr == Just (T.pack userName)) (lift $ sendIntendedMessage msg mbRoom userName chatState user checkAccess) -- only send if you are the intended recipient.
 
 logout userName chatState user = do
         let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
@@ -112,8 +112,8 @@ logout userName chatState user = do
         saveTVar chatState (removeUserFromAll user)
 
 
-sendIntendedMessage :: ServerMessage -> String -> TVar ChatState -> User -> (String -> String -> IO (Maybe String)) -> IO ()
-sendIntendedMessage msg userName chatState user checkAccess =
+sendIntendedMessage :: ServerMessage -> Maybe T.Text -> String -> TVar ChatState -> User -> (String -> String -> IO (Maybe String)) -> IO ()
+sendIntendedMessage msg mbRoom userName chatState user checkAccess =
         case msg of
             Join roomName -> do access <- checkAccess userName roomName
                                 case access of
@@ -131,12 +131,13 @@ sendIntendedMessage msg userName chatState user checkAccess =
                                  warningM "Chat.Application" (userName ++ " left " ++ roomName)
             Login name pass -> do let alreadyLoggedInMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = AlreadyLoggedIn }
                                   sendToRoom chatState mainChatRoom alreadyLoggedInMsg
-            Message roomName str -> do access <- checkAccess userName (T.unpack roomName)
-                                       -- todo check if user joined as well
-                                       case access of
-                                           Just userName -> do let chatMsg = MessageData { messageDataUser = T.pack userName, messageDataChannel = roomName, messageDataMessage = str}
-                                                               sendToRoom chatState roomName chatMsg
-                                           Nothing -> warningM "Chat.Application" (userName ++ " attempted to post to " ++ T.unpack roomName)
+            Message str -> do let roomname = fromMaybe mainChatRoom mbRoom
+                              access <- checkAccess userName (T.unpack roomname)
+                              -- todo check if user joined as well
+                              case access of
+                                 Just userName -> do let chatMsg = MessageData { messageDataUser = T.pack userName, messageDataChannel = roomname, messageDataMessage = userName ++ ": " ++ str}
+                                                     sendToRoom chatState roomname chatMsg
+                                 Nothing -> warningM "Chat.Application" (userName ++ " attempted to post to " ++ T.unpack roomname)
             _  -> return () -- no action, potentially logging
 
 receiveJsonMessage connection = do
@@ -151,15 +152,10 @@ parseJsonMessage received = do
             let mbMsgData = decodeStrict (encodeUtf8 received) :: Maybe ClientMessage
             case mbMsgData of
                 Just clientMessage -> do let parsedMsg = parseMessage (T.unpack $ message clientMessage)
-                                         either (toChatMessage clientMessage) ((,) (user clientMessage)) parsedMsg
-                Nothing -> (Nothing, Invalid "json parsing error")
-
-
-toChatMessage json _ = if isNothing (channel json) || isNothing (user json)
-                         then (Nothing, Invalid "empty message")
-                         else do let ch = fromJust $ channel json
-                                     usr = fromJust $ user json
-                                 (user json, Message ch (T.unpack usr ++ ": " ++ T.unpack (message json)))
+                                         case parsedMsg of
+                                            Left _ -> (Nothing, Nothing, Invalid "invalid message")
+                                            Right msg -> (user clientMessage, channel clientMessage, msg)
+                Nothing -> (Nothing, Nothing, Invalid "json parsing error")
 
 toJsonMessage = decodeUtf8 . toStrict . encode
 
