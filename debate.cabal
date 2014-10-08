@@ -19,6 +19,7 @@ library
   exposed-modules:     Debate.Server
                      , Debate.Types
                      , Chat.Message
+                     , Chat.State
                      , Chat.Application
   build-depends:       base >=4.6 && <4.8
                      , websockets
