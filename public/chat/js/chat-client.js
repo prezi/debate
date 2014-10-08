@@ -139,9 +139,9 @@ $( document ).ready(function() {
                 // broadcast leaving in common room: let server know?
                 setTimeout(reconnect, 1000); // try every second
         };
-        form.unbind(); // before rebinding with current socket
+        form.unbind('submit'); // before rebinding with current socket
         // send messages: identify, join room, leave room, say something
-        form.submit(function() {
+        form.bind('submit', function() {
             // data to be sent includes: the user, channel and the message
             sockjs.send(JSON.stringify(messageJSON(user, currentChannel, input.val())));
             input.val('');
