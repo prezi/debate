@@ -220,7 +220,7 @@ receiveLoop receive connection state sessionId appThreadId heartThreadId = handl
     forever $ do
        msg <- WS.receiveData connection :: IO T.Text
        atomically $ writeTChan receive $ msgFromFrame msg
-     where catchDisconnect state sessionId e = do
+     where catchDisconnect state sessionId e =
             case fromException e of
                 Just WS.ConnectionClosed -> do removeClient state sessionId
                                                killThread appThreadId
