@@ -50,6 +50,7 @@ data ChatCommand = LoginCommand
                  | MessageCommand
                  | LoginRequired
                  | LoginFailed
+                 | AlreadyLoggedIn
                    deriving (Show)
 
 instance FromJSON ClientMessage
@@ -73,6 +74,7 @@ instance ToJSON ChatCommand where
   toJSON MessageCommand = String "msg"
   toJSON LoginFailed = String "loginFailed"
   toJSON LoginRequired = String "loginRequired"
+  toJSON AlreadyLoggedIn = String "alreadyLoggedIn"
 
 mainChatRoom = "Lobby"
 
@@ -82,8 +84,7 @@ chat ChatSecurity{..} chatState connection =
         case msg of
           Login name pass -> do credentials <- checkCredentials name pass
                                 case credentials of
-                                    Just user -> do void (loggedIn user connection chatState checkAccess)
-                                                    chstate <- readTVarIO chatState
+                                    Just user -> void (loggedIn user connection chatState checkAccess)
                                     Nothing   -> sendTextData connection (toJsonMessage CommandMsg {commandMsgChannel = Nothing, commandMsgUser = Nothing, command = LoginFailed })
           _               -> sendTextData connection (toJsonMessage CommandMsg {commandMsgChannel = Nothing, commandMsgUser = Nothing, command = LoginRequired})
 
@@ -128,6 +129,8 @@ sendIntendedMessage msg userName chatState user checkAccess =
                                  sendToRoom chatState tRoomName leaveMsg
                                  saveTVar chatState (removeUserFromRoom user tRoomName)
                                  warningM "Chat.Application" (userName ++ " left " ++ roomName)
+            Login name pass -> do let alreadyLoggedInMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = AlreadyLoggedIn }
+                                  sendToRoom chatState mainChatRoom alreadyLoggedInMsg
             Message roomName str -> do access <- checkAccess userName (T.unpack roomName)
                                        -- todo check if user joined as well
                                        case access of

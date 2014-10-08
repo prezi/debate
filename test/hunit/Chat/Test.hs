@@ -25,7 +25,8 @@ import Chat.Application
 chatSuite =
   [
     testGroup "login - logout" [ testCase "login successful" caseLoginSuccessful
-                               , testCase "logout" caseLogout ]
+                               , testCase "logout" caseLogout
+                               , testCase "login twice" caseLoginTwice ]
   , testGroup "chatrooms" [ testCase "chat in lobby" caseChatInLobby
                           , testCase "join chat room" caseJoinChatroom
                           , testCase "second user joins chat room" caseJoinChatroomTwoUsers
@@ -134,6 +135,16 @@ caseLeaveChatroom = do
        sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"LEAVE room1\"}"
        (outputData, _) <- retrieval conn
        assertEqual "outputData" (Just "{\"command\":\"leave\",\"channel\":\"room1\",\"user\":\"user1\"}") outputData
+
+caseLoginTwice = do
+    chatState <- newChatState
+    runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
+       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
+       _ <- retrieval conn
+       sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"LOGIN user1 pass1\"}"
+       (outputData, _) <- retrieval conn
+       assertEqual "outputData" (Just "{\"command\":\"alreadyLoggedIn\",\"channel\":\"Lobby\",\"user\":\"user1\"}") outputData
+
 
 
 -- useless handle to add to user
