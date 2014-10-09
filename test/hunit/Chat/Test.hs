@@ -40,6 +40,7 @@ chatSuite =
   , testGroup "state management" [ testCase "add user to room" caseAddUserToRoom
                                  , testCase "remove user from room" caseRemoveUserFromRoom
                                  , testCase "remove user from all rooms" caseRemoveUserFromAllRooms ]
+  , testGroup "access" [ testCase "wrong credentials" caseWrongCredentials ]
   ]
 
 -- setup test helpers to be able to test sockjs apps independently from underlying sockjs handling
@@ -62,9 +63,11 @@ runTestApplication security chatState assertions = do
     assertions (input, output, broadcast)
 
 -- pass in authentication method
-checkPasses user pass = return $ Just user
+checkPasses user _ = return $ Just user
+checkFails _ _ = return $ Nothing
 checkAccessPasses user _ = return $ Just user
 allOKSecurity = ChatSecurity {checkCredentials = checkPasses, checkAccess = checkAccessPasses}
+badCredentialsSecurity = ChatSecurity {checkCredentials = checkFails, checkAccess = checkAccessPasses}
 
 sendText input text = atomically $ putTMVar input text
 
@@ -225,6 +228,13 @@ caseLeaveChatroomWhenNotJoined = do
        sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"LEAVE room1\"}"
        (outputData, _) <- retrieval conn
        assertEqual "outputData" (Just "{\"command\":\"notJoined\",\"channel\":\"room1\",\"user\":\"user1\"}") outputData
+
+caseWrongCredentials = do
+    chatState <- newChatState
+    runTestApplication badCredentialsSecurity chatState $ \conn@(input,_,_) -> do
+       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
+       (outputData, _) <- retrieval conn
+       assertEqual "outputData" (Just "{\"command\":\"loginFailed\",\"channel\":null,\"user\":null}") outputData
 
 -- useless handle to add to user
 dummyHandle = SockConnection { receiveData = return (T.pack "hello"), sendTextData = print, broadcastData = print } 
