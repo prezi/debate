@@ -111,6 +111,9 @@ $( document ).ready(function() {
               case "alreadyLoggedIn":
                   channelMessage(mainChatRoom, "you're already logged in");
                   break;
+              case "notJoined":
+                  channelMessage(mainChatRoom, "you haven't joined " + message.channel);
+                  break;
               case "logout":
                   channelMessage(mainChatRoom, message.user + " just quit");
                   if (loggedIn && user == message.user) { reinitialize(); }

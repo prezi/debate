@@ -52,6 +52,7 @@ data ChatCommand = LoginCommand
                  | LoginFailed
                  | AlreadyLoggedIn
                  | AlreadyJoined
+                 | NotJoined
                    deriving (Show)
 
 instance FromJSON ClientMessage
@@ -77,6 +78,7 @@ instance ToJSON ChatCommand where
   toJSON LoginRequired = String "loginRequired"
   toJSON AlreadyLoggedIn = String "alreadyLoggedIn"
   toJSON AlreadyJoined = String "alreadyJoined"
+  toJSON NotJoined = String "notJoined"
 
 mainChatRoom = "Lobby"
 
@@ -122,12 +124,11 @@ sendIntendedMessage msg mbRoom userName chatState user checkAccess =
                                 if isUserInRoom chState user tRoomname
                                   then sendToRoom chatState tRoomname CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomname, command = AlreadyJoined }
                                   else joinRoom user roomName chatState checkAccess
-            Leave roomName -> do let tRoomName = T.pack roomName
-                                     leaveMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = LeaveCommand }
-                                 -- TODO cannot leave mainChatRoom
-                                 sendToRoom chatState tRoomName leaveMsg
-                                 saveTVar chatState (removeUserFromRoom user tRoomName)
-                                 warningM "Chat.Application" (userName ++ " left " ++ roomName)
+            Leave roomName -> do chState <- readTVarIO chatState
+                                 let tRoomName = T.pack roomName
+                                 if isUserInRoom chState user tRoomName
+                                   then leaveRoom user roomName chatState
+                                   else sendToRoom chatState mainChatRoom CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = NotJoined }
             Login name pass -> do let alreadyLoggedInMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = AlreadyLoggedIn }
                                   sendToRoom chatState mainChatRoom alreadyLoggedInMsg
             Message str -> do let roomname = fromMaybe mainChatRoom mbRoom
@@ -156,6 +157,17 @@ joinRoom user roomname chatState checkAccess = do
                              warningM "Chat.Application" (username ++ " joined " ++ roomname)
                 Nothing -> warningM "Chat.Application" (username ++ " attempted to join " ++ roomname)
 
+leaveRoom user roomname chatState = do
+            let tUsername = userName user
+                username = T.unpack tUsername
+                tRoomName = T.pack roomname
+                leaveMsg = CommandMsg { commandMsgUser = Just tUsername, commandMsgChannel = Just tRoomName, command = LeaveCommand }
+            if tRoomName == mainChatRoom
+              then return ()
+              else do
+                sendToRoom chatState tRoomName leaveMsg
+                saveTVar chatState (removeUserFromRoom user tRoomName)
+                warningM "Chat.Application" (username ++ " left " ++ roomname)
 -- if not valid json: invalid msg
 -- if valid json but message not parsed : chat msg
 -- else: parsed command msg

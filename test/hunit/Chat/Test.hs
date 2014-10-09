@@ -35,6 +35,7 @@ chatSuite =
                           , testCase "second user joins chat room" caseJoinChatroomTwoUsers
                           , testCase "two users chat in a chatroom" caseChatroomChat
                           , testCase "leave chat room" caseLeaveChatroom
+                          , testCase "leave chat room when not previously joined" caseLeaveChatroomWhenNotJoined
                           , testCase "attempt to leave when not logged in" caseLeaveWhenNotLoggedIn ]
   , testGroup "state management" [ testCase "add user to room" caseAddUserToRoom
                                  , testCase "remove user from room" caseRemoveUserFromRoom
@@ -216,6 +217,14 @@ caseLeaveWhenNotLoggedIn = do
        (outputData, _) <- retrieval conn
        assertEqual "outputData" (Just "{\"command\":\"loginRequired\",\"channel\":null,\"user\":null}") outputData
 
+caseLeaveChatroomWhenNotJoined = do
+    chatState <- newChatState
+    runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
+       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
+       _ <- retrieval conn
+       sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"LEAVE room1\"}"
+       (outputData, _) <- retrieval conn
+       assertEqual "outputData" (Just "{\"command\":\"notJoined\",\"channel\":\"room1\",\"user\":\"user1\"}") outputData
 
 -- useless handle to add to user
 dummyHandle = SockConnection { receiveData = return (T.pack "hello"), sendTextData = print, broadcastData = print } 
