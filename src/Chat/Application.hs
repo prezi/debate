@@ -158,14 +158,12 @@ joinRoom user roomname chatState checkAccess = do
                 Nothing -> warningM "Chat.Application" (username ++ " attempted to join " ++ roomname)
 
 leaveRoom user roomname chatState = do
-            let tUsername = userName user
-                username = T.unpack tUsername
-                tRoomName = T.pack roomname
-                leaveMsg = CommandMsg { commandMsgUser = Just tUsername, commandMsgChannel = Just tRoomName, command = LeaveCommand }
+            let tRoomName = T.pack roomname
+                leaveMsg = CommandMsg { commandMsgUser = Just (userName user), commandMsgChannel = Just tRoomName, command = LeaveCommand }
             unless (tRoomName == mainChatRoom) $ do
                 sendToRoom chatState tRoomName leaveMsg
                 saveTVar chatState (removeUserFromRoom user tRoomName)
-                warningM "Chat.Application" (username ++ " left " ++ roomname)
+                warningM "Chat.Application" (T.unpack (userName user) ++ " left " ++ roomname)
 -- if not valid json: invalid msg
 -- if valid json but message not parsed : chat msg
 -- else: parsed command msg
