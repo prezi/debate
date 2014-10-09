@@ -40,7 +40,8 @@ chatSuite =
   , testGroup "state management" [ testCase "add user to room" caseAddUserToRoom
                                  , testCase "remove user from room" caseRemoveUserFromRoom
                                  , testCase "remove user from all rooms" caseRemoveUserFromAllRooms ]
-  , testGroup "access" [ testCase "wrong credentials" caseWrongCredentials ]
+  , testGroup "access" [ testCase "wrong credentials" caseWrongCredentials
+                       , testCase "no access to chatroom" caseNoAccess ]
   ]
 
 -- setup test helpers to be able to test sockjs apps independently from underlying sockjs handling
@@ -66,8 +67,10 @@ runTestApplication security chatState assertions = do
 checkPasses user _ = return $ Just user
 checkFails _ _ = return $ Nothing
 checkAccessPasses user _ = return $ Just user
+checkAccessFails _ _ = return $ Nothing
 allOKSecurity = ChatSecurity {checkCredentials = checkPasses, checkAccess = checkAccessPasses}
 badCredentialsSecurity = ChatSecurity {checkCredentials = checkFails, checkAccess = checkAccessPasses}
+noAccessSecurity = ChatSecurity {checkCredentials = checkPasses, checkAccess = checkAccessFails}
 
 sendText input text = atomically $ putTMVar input text
 
@@ -235,6 +238,15 @@ caseWrongCredentials = do
        sendText input "{\"message\": \"LOGIN user1 pass1\"}"
        (outputData, _) <- retrieval conn
        assertEqual "outputData" (Just "{\"command\":\"loginFailed\",\"channel\":null,\"user\":null}") outputData
+
+caseNoAccess = do
+    chatState <- newChatState
+    runTestApplication noAccessSecurity chatState $ \conn@(input,_,_) -> do
+       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
+       _ <- retrieval conn
+       sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
+       (outputData, _) <- retrieval conn
+       assertEqual "outputData" (Just "{\"command\":\"noAccess\",\"channel\":\"room1\",\"user\":\"user1\"}") outputData
 
 -- useless handle to add to user
 dummyHandle = SockConnection { receiveData = return (T.pack "hello"), sendTextData = print, broadcastData = print } 

@@ -53,6 +53,7 @@ data ChatCommand = LoginCommand
                  | AlreadyLoggedIn
                  | AlreadyJoined
                  | NotJoined
+                 | NoAccess
                    deriving (Show)
 
 instance FromJSON ClientMessage
@@ -79,6 +80,7 @@ instance ToJSON ChatCommand where
   toJSON AlreadyLoggedIn = String "alreadyLoggedIn"
   toJSON AlreadyJoined = String "alreadyJoined"
   toJSON NotJoined = String "notJoined"
+  toJSON NoAccess = String "noAccess"
 
 mainChatRoom = "Lobby"
 
@@ -155,7 +157,9 @@ joinRoom user roomname chatState checkAccess = do
                              saveTVar chatState $ addUserToRoom tRoomName user
                              sendToRoom chatState tRoomName joinedMsg
                              warningM "Chat.Application" (username ++ " joined " ++ roomname)
-                Nothing -> warningM "Chat.Application" (username ++ " attempted to join " ++ roomname)
+                Nothing -> do let noAccessMsg = CommandMsg { commandMsgUser = Just tUsername, commandMsgChannel = Just tRoomName, command = NoAccess }
+                              sendToRoom chatState mainChatRoom noAccessMsg
+                              warningM "Chat.Application" (username ++ " attempted to join " ++ roomname)
 
 leaveRoom user roomname chatState = do
             let tRoomName = T.pack roomname
