@@ -124,15 +124,15 @@ sendIntendedMessage msg mbRoom userName chatState user checkAccess =
             Join roomName -> do chState <- readTVarIO chatState
                                 let tRoomname = T.pack roomName
                                 if isUserInRoom chState user tRoomname
-                                  then sendToRoom chatState tRoomname CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomname, command = AlreadyJoined }
+                                  then sendToClient chatState tRoomname CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomname, command = AlreadyJoined } user
                                   else joinRoom user roomName chatState checkAccess
             Leave roomName -> do chState <- readTVarIO chatState
                                  let tRoomName = T.pack roomName
                                  if isUserInRoom chState user tRoomName
                                    then leaveRoom user roomName chatState
-                                   else sendToRoom chatState mainChatRoom CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = NotJoined }
+                                   else sendToClient chatState mainChatRoom CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = NotJoined } user
             Login name pass -> do let alreadyLoggedInMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = AlreadyLoggedIn }
-                                  sendToRoom chatState mainChatRoom alreadyLoggedInMsg
+                                  sendToClient chatState mainChatRoom alreadyLoggedInMsg user
             Message str -> do let roomname = fromMaybe mainChatRoom mbRoom
                               access <- checkAccess userName (T.unpack roomname)
                               -- todo check if user joined as well
@@ -158,7 +158,7 @@ joinRoom user roomname chatState checkAccess = do
                              sendToRoom chatState tRoomName joinedMsg
                              warningM "Chat.Application" (username ++ " joined " ++ roomname)
                 Nothing -> do let noAccessMsg = CommandMsg { commandMsgUser = Just tUsername, commandMsgChannel = Just tRoomName, command = NoAccess }
-                              sendToRoom chatState mainChatRoom noAccessMsg
+                              sendToClient chatState mainChatRoom noAccessMsg user
                               warningM "Chat.Application" (username ++ " attempted to join " ++ roomname)
 
 leaveRoom user roomname chatState = do
@@ -191,9 +191,12 @@ sendToRoom tvarChatState roomName message = do
                users = maybe [] usersInRoom mbRoom
                json = toJsonMessage message
            mapM_ (sendIfClientPresent tvarChatState roomName json) users
-           where sendIfClientPresent tvarChatState roomName json user = do
-                      err <- tryJust (guard . (== ClientNotFoundException)) $ sendTextData (handle user) json
-                      case err of
-                        Left _ -> do warningM "Chat.Application" (T.unpack (userName user) ++ " disconnected")
-                                     saveTVar tvarChatState (removeUserFromRoom user roomName)
-                        Right _ -> return ()
+
+sendToClient chatState roomName msg = sendIfClientPresent chatState roomName (toJsonMessage msg)
+
+sendIfClientPresent tvarChatState roomName json user = do
+           err <- tryJust (guard . (== ClientNotFoundException)) $ sendTextData (handle user) json
+           case err of
+              Left _ -> do warningM "Chat.Application" (T.unpack (userName user) ++ " disconnected")
+                           saveTVar tvarChatState (removeUserFromRoom user roomName)
+              Right _ -> return ()
