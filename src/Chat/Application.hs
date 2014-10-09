@@ -6,7 +6,7 @@ module Chat.Application (
 , newChatState
 ) where
 
-import Control.Monad (mzero, forever, void, when, guard)
+import Control.Monad (mzero, forever, void, when, guard, unless)
 import Control.Monad.Trans.Either
 import Control.Monad.Trans.Class (lift)
 import Control.Concurrent.STM.TVar
@@ -162,9 +162,7 @@ leaveRoom user roomname chatState = do
                 username = T.unpack tUsername
                 tRoomName = T.pack roomname
                 leaveMsg = CommandMsg { commandMsgUser = Just tUsername, commandMsgChannel = Just tRoomName, command = LeaveCommand }
-            if tRoomName == mainChatRoom
-              then return ()
-              else do
+            unless (tRoomName == mainChatRoom) $ do
                 sendToRoom chatState tRoomName leaveMsg
                 saveTVar chatState (removeUserFromRoom user tRoomName)
                 warningM "Chat.Application" (username ++ " left " ++ roomname)
