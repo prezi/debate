@@ -12,6 +12,7 @@ import Test.Framework
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TMVar
+import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM.TChan
 
 import qualified Data.Text as T
@@ -28,7 +29,9 @@ chatSuite =
                                , testCase "logout" caseLogout
                                , testCase "login twice" caseLoginTwice ]
   , testGroup "chatrooms" [ testCase "chat in lobby" caseChatInLobby
+                          , testCase "join chat room feedback" caseJoinChatroomMsg
                           , testCase "join chat room" caseJoinChatroom
+                          , testCase "join chat room" caseJoinChatroomTwice
                           , testCase "second user joins chat room" caseJoinChatroomTwoUsers
                           , testCase "leave chat room" caseLeaveChatroom ]
   , testGroup "state management" [ testCase "add user to room" caseAddUserToRoom
@@ -100,7 +103,7 @@ caseChatInLobby = do
       (outputData, broadcastData) <- retrieval conn
       assertEqual "incoming data" (Just "{\"command\":\"msg\",\"channel\":\"Lobby\",\"user\":\"user1\",\"message\":\"user1: I say something\"}") outputData
 
-caseJoinChatroom = do
+caseJoinChatroomMsg = do
     chatState <- newChatState
     runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN user1 pass1\"}"
@@ -108,6 +111,31 @@ caseJoinChatroom = do
        sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
        (outputData, _) <- retrieval conn
        assertEqual "outputData" (Just "{\"command\":\"join\",\"channel\":\"room1\",\"user\":\"user1\"}") outputData
+
+-- note: tests polls internal state of app.
+caseJoinChatroom = do
+    chatState <- newChatState
+    runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
+       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
+       _ <- retrieval conn
+       sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
+       _ <- retrieval conn
+       newState <- readTVarIO chatState
+       let newRooms = fromMaybe [] (Map.lookup (T.pack "user1") (userState newState))
+           newUsers = map userName $ usersInRoom $ fromJust $ Map.lookup (T.pack "room1") (roomState newState)
+       assertBool "the user was not added to the room" (elem (T.pack "user1") newUsers)
+       assertBool "the room was not added to the user" (elem (T.pack "room1") newRooms)
+
+caseJoinChatroomTwice = do
+    chatState <- newChatState
+    runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
+       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
+       _ <- retrieval conn
+       sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
+       _ <- retrieval conn
+       sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
+       (outputData, _) <- retrieval conn
+       assertEqual "outputData" (Just "{\"command\":\"alreadyJoined\",\"channel\":\"room1\",\"user\":\"user1\"}") outputData
 
 caseJoinChatroomTwoUsers = do
     chatState <- newChatState

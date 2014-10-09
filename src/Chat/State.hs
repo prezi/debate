@@ -9,6 +9,7 @@ module Chat.State (
 , addUserToRoom
 , removeUserFromRoom
 , removeUserFromAll
+, isUserInRoom
 , saveTVar
 ) where
 
@@ -83,3 +84,6 @@ removeUserFromRoom user@User{userName = userName} roomName ChatState{..} = do
             ChatState {userState = newUserState, roomState = newRoomState }
             where removeUser user Room{roomName = name, usersInRoom = usrs} = Room{roomName = name, usersInRoom = filter (\usr -> user /= usr) usrs}
                   removeRoom roomName = filter (\name -> roomName /= name)
+
+isUserInRoom :: ChatState -> User -> T.Text -> Bool
+isUserInRoom chatState user roomname = maybe False (elem user . usersInRoom) (Map.lookup roomname (roomState chatState))

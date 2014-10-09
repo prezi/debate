@@ -51,6 +51,7 @@ data ChatCommand = LoginCommand
                  | LoginRequired
                  | LoginFailed
                  | AlreadyLoggedIn
+                 | AlreadyJoined
                    deriving (Show)
 
 instance FromJSON ClientMessage
@@ -75,6 +76,7 @@ instance ToJSON ChatCommand where
   toJSON LoginFailed = String "loginFailed"
   toJSON LoginRequired = String "loginRequired"
   toJSON AlreadyLoggedIn = String "alreadyLoggedIn"
+  toJSON AlreadyJoined = String "alreadyJoined"
 
 mainChatRoom = "Lobby"
 
@@ -115,14 +117,11 @@ logout userName chatState user = do
 sendIntendedMessage :: ServerMessage -> Maybe T.Text -> String -> TVar ChatState -> User -> (String -> String -> IO (Maybe String)) -> IO ()
 sendIntendedMessage msg mbRoom userName chatState user checkAccess =
         case msg of
-            Join roomName -> do access <- checkAccess userName roomName
-                                case access of
-                                    Just userName -> do let tRoomName = T.pack roomName
-                                                            joinedMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = JoinCommand }
-                                                        saveTVar chatState $ addUserToRoom tRoomName user
-                                                        sendToRoom chatState tRoomName joinedMsg
-                                                        warningM "Chat.Application" (userName ++ " joined " ++ roomName)
-                                    Nothing -> warningM "Chat.Application" (userName ++ " attempted to join " ++ roomName)
+            Join roomName -> do chState <- readTVarIO chatState
+                                let tRoomname = T.pack roomName
+                                if isUserInRoom chState user tRoomname
+                                  then sendToRoom chatState tRoomname CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomname, command = AlreadyJoined }
+                                  else joinRoom user roomName chatState checkAccess
             Leave roomName -> do let tRoomName = T.pack roomName
                                      leaveMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = LeaveCommand }
                                  -- TODO cannot leave mainChatRoom
@@ -144,6 +143,18 @@ receiveJsonMessage connection = do
             received <- receiveData connection
             debugM "Chat.Application" $ T.unpack received
             return $ parseJsonMessage received
+
+joinRoom user roomname chatState checkAccess = do
+            let tUsername = userName user
+                username = T.unpack tUsername
+                tRoomName = T.pack roomname
+            access <- checkAccess username roomname
+            case access of
+                Just _ -> do let joinedMsg = CommandMsg { commandMsgUser = Just tUsername, commandMsgChannel = Just tRoomName, command = JoinCommand }
+                             saveTVar chatState $ addUserToRoom tRoomName user
+                             sendToRoom chatState tRoomName joinedMsg
+                             warningM "Chat.Application" (username ++ " joined " ++ roomname)
+                Nothing -> warningM "Chat.Application" (username ++ " attempted to join " ++ roomname)
 
 -- if not valid json: invalid msg
 -- if valid json but message not parsed : chat msg
