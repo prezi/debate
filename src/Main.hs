@@ -10,8 +10,8 @@ main = do
    args <- getArgs
    let (flags, nonOpts, msgs) = getOpt RequireOrder options args
    if Transport "xhr" `elem` flags
-     then runServer (setPrefix "/echo" (setTransportWhitelist ["xhr_polling"] defaultConfiguration)) echo
-     else runServer (setPrefix "/echo" defaultConfiguration) echo
+     then runServer (setPrefix "/echo" (setTransportWhitelist ["xhr_polling"] defaultConfiguration)) echo Nothing
+     else runServer (setPrefix "/echo" defaultConfiguration) echo Nothing
 
 options :: [OptDescr Flag] 
 options = [ Option "t" ["transport"] (ReqArg Transport "xhr") "to limit transport whitelist to xhr" ]

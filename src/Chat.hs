@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
 import Debate.Server
 import Chat.Application
@@ -8,11 +8,33 @@ import System.Log.Handler.Simple (streamHandler)
 import System.Log.Handler (setFormatter)
 import System.Log.Formatter
 
+import Network.Wai
+import Network.HTTP.Types (status200)
+import Network.Wai.Application.Static
+
+import Data.String (fromString)
+import Data.Text (pack)
+import Data.Maybe (mapMaybe)
+import WaiAppStatic.Types (toPiece)
+import Data.FileEmbed (embedDir)
+
 main :: IO ()
 main = do
         setupLogger
         chatState <- newChatState
-        runServer (setPort 8989 (setPrefix "/chat" defaultConfiguration)) (chat ChatSecurity {checkCredentials = checkUserPass, checkAccess = checkAccessToRoom} chatState)
+        runServer (setPort 8989 (setPrefix "/chat" defaultConfiguration)) (chat ChatSecurity {checkCredentials = checkUserPass, checkAccess = checkAccessToRoom} chatState) (Just intercept)
+
+intercept :: Middleware
+intercept app req respond = do
+     let path = pathInfo req
+     case path of
+       [] -> staticApp (defaultFileServerSettings $ fromString "public/chat")
+                   {
+                      ssIndices = mapMaybe (toPiece . pack) ["index.html"]
+                   } req respond
+       ["js", _] -> (staticApp $ embeddedSettings $(embedDir "public/chat") ) req respond
+       ["status"] -> respond $ responseLBS status200 [("Content-Type", "text/plain")] "Status page goes here"
+       _ ->  app req respond
 
 -- pass in authentication and access
 checkUserPass :: String -> String -> IO (Maybe String)

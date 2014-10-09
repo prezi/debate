@@ -58,14 +58,16 @@ instance Exception DebateException
 --  * iframe, xhr streaming, json polling, ...
 --  * params: transport types, heartbeat delay
 
-runServer configuration application = do
+runServer configuration application mbMiddleware = do
     let settings = Warp.setPort (port configuration) Warp.defaultSettings
         transports = transportWhitelist configuration
     state <- newServerState
     -- at the moment just provide option of limiting to xhr polling - should handle other cases (all combos of xhr polling and websockets)
+    let httpApp = httpApplication configuration application state
+        mwApp = maybe httpApp (\mw -> mw httpApp) mbMiddleware
     case transports of
       ["xhr_polling"] -> Warp.runSettings settings $ httpApplication configuration application state
-      otherwise -> Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions (wsApplication configuration application state) (httpApplication configuration application state)
+      otherwise -> Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions (wsApplication configuration application state) mwApp
 
 -- TODO: add routing for '/info', '/greeting', and all xhr polling
 -- the websocket or xhr-polling transport should go over 
