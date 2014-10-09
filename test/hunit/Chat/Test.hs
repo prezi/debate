@@ -172,7 +172,7 @@ caseChatroomChat = do
             (outputData, _) <- retrieval conn1
             assertEqual "msg in room1 from user2" (Just "{\"command\":\"msg\",\"channel\":\"room1\",\"user\":\"user2\",\"message\":\"user2: hello\"}") outputData
 
-caseLeaveChatroom = do
+caseLeaveChatroomMsg = do
     chatState <- newChatState
     runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN user1 pass1\"}"
@@ -182,6 +182,22 @@ caseLeaveChatroom = do
        sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"LEAVE room1\"}"
        (outputData, _) <- retrieval conn
        assertEqual "outputData" (Just "{\"command\":\"leave\",\"channel\":\"room1\",\"user\":\"user1\"}") outputData
+
+-- note: checks internal state of chatroom
+caseLeaveChatroom = do
+    chatState <- newChatState
+    runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
+       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
+       _ <- retrieval conn
+       sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
+       _ <- retrieval conn
+       sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"LEAVE room1\"}"
+       _ <- retrieval conn
+       newState <- readTVarIO chatState
+       let newRooms = fromMaybe [] (Map.lookup (T.pack "user1") (userState newState))
+           newUsers = map userName $ usersInRoom $ fromJust $ Map.lookup (T.pack "room1") (roomState newState)
+       assertBool "the user was not removed from the room" (not $ elem (T.pack "user1") newUsers)
+       assertBool "the room was not removed from the user" (not $ elem (T.pack "room1") newRooms)
 
 caseLoginTwice = do
     chatState <- newChatState
