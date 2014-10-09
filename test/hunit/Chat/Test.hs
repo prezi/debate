@@ -33,6 +33,7 @@ chatSuite =
                           , testCase "join chat room" caseJoinChatroom
                           , testCase "join chat room" caseJoinChatroomTwice
                           , testCase "second user joins chat room" caseJoinChatroomTwoUsers
+                          , testCase "two users chat in a chatroom" caseChatroomChat
                           , testCase "leave chat room" caseLeaveChatroom ]
   , testGroup "state management" [ testCase "add user to room" caseAddUserToRoom
                                  , testCase "remove user from room" caseRemoveUserFromRoom
@@ -152,6 +153,24 @@ caseJoinChatroomTwoUsers = do
             _ <- retrieval conn2
             (outputData, _) <- retrieval conn1
             assertEqual "outputData" (Just "{\"command\":\"join\",\"channel\":\"room1\",\"user\":\"user2\"}") outputData
+
+caseChatroomChat = do
+    chatState <- newChatState
+    runTestApplication allOKSecurity chatState $ \conn1@(input1,_,_) -> do
+       sendText input1 "{\"message\": \"LOGIN user1 pass1\"}"
+       _ <- retrieval conn1
+       runTestApplication allOKSecurity chatState $ \conn2@(input2,_,_) -> do
+            sendText input2 "{\"message\": \"LOGIN user2 pass2\"}"
+            _ <- retrieval conn1
+            _ <- retrieval conn2
+            sendText input1 "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
+            _ <- retrieval conn1
+            sendText input2 "{\"user\": \"user2\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
+            _ <- retrieval conn2
+            _ <- retrieval conn1
+            sendText input2 "{\"user\": \"user2\", \"channel\": \"room1\", \"message\": \"MSG hello\"}"
+            (outputData, _) <- retrieval conn1
+            assertEqual "msg in room1 from user2" (Just "{\"command\":\"msg\",\"channel\":\"room1\",\"user\":\"user2\",\"message\":\"user2: hello\"}") outputData
 
 caseLeaveChatroom = do
     chatState <- newChatState
