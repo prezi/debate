@@ -34,7 +34,8 @@ chatSuite =
                           , testCase "join chat room" caseJoinChatroomTwice
                           , testCase "second user joins chat room" caseJoinChatroomTwoUsers
                           , testCase "two users chat in a chatroom" caseChatroomChat
-                          , testCase "leave chat room" caseLeaveChatroom ]
+                          , testCase "leave chat room" caseLeaveChatroom
+                          , testCase "attempt to leave when not logged in" caseLeaveWhenNotLoggedIn ]
   , testGroup "state management" [ testCase "add user to room" caseAddUserToRoom
                                  , testCase "remove user from room" caseRemoveUserFromRoom
                                  , testCase "remove user from all rooms" caseRemoveUserFromAllRooms ]
@@ -208,6 +209,12 @@ caseLoginTwice = do
        (outputData, _) <- retrieval conn
        assertEqual "outputData" (Just "{\"command\":\"alreadyLoggedIn\",\"channel\":\"Lobby\",\"user\":\"user1\"}") outputData
 
+caseLeaveWhenNotLoggedIn = do
+    chatState <- newChatState
+    runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
+       sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"LEAVE room1\"}"
+       (outputData, _) <- retrieval conn
+       assertEqual "outputData" (Just "{\"command\":\"loginRequired\",\"channel\":null,\"user\":null}") outputData
 
 
 -- useless handle to add to user
