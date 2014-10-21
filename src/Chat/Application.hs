@@ -11,7 +11,8 @@ import Control.Monad.Trans.Either
 import Control.Monad.Trans.Class (lift)
 import Control.Concurrent.STM.TVar
 import Control.Exception (tryJust)
-import Data.Maybe (fromJust, isNothing, fromMaybe)
+import Control.Applicative (liftA)
+import Data.Maybe (fromJust, isNothing, fromMaybe, isJust)
 import Data.Aeson (FromJSON(..), ToJSON(..), decodeStrict, encode, Value(..), (.=), object)
 import GHC.Generics (Generic) -- generics
 import Chat.Message
@@ -41,6 +42,8 @@ data MessageData = MessageData { messageDataUser :: T.Text
                  | CommandMsg { commandMsgUser :: Maybe T.Text
                               , commandMsgChannel :: Maybe T.Text
                               , command :: ChatCommand }
+                 | StatusMsg { loggedin :: Int
+                             , chatrooms :: Int }
                      deriving Show
 
 data ChatCommand = LoginCommand
@@ -68,6 +71,9 @@ instance ToJSON MessageData where
     object [ "user" .= toJSON mbUser
            , "channel" .= toJSON mbChannel
            , "command" .= toJSON command ]
+  toJSON (StatusMsg loggedin chatrooms) =
+    object [ "loggedIn" .= toJSON loggedin
+           , "chatRooms" .= toJSON chatrooms ]
 
 instance ToJSON ChatCommand where
   toJSON LoginCommand = String "login"
@@ -83,16 +89,23 @@ instance ToJSON ChatCommand where
   toJSON NoAccess = String "noAccess"
 
 mainChatRoom = "Lobby"
+statusIdentifier = "Status##"
 
 chat ChatSecurity{..} chatState connection =
     forever $ do
         (_, _, msg) <- receiveJsonMessage connection
         case msg of
-          Login name pass -> do credentials <- checkCredentials name pass
-                                case credentials of
-                                    Just user -> void (loggedIn user connection chatState checkAccess)
+          Login name pass  -> do credentials <- checkCredentials name pass
+                                 case credentials of
+                                    Just user -> void $ loggedIn user connection chatState checkAccess
                                     Nothing   -> sendTextData connection (toJsonMessage CommandMsg {commandMsgChannel = Nothing, commandMsgUser = Nothing, command = LoginFailed })
-          _               -> sendTextData connection (toJsonMessage CommandMsg {commandMsgChannel = Nothing, commandMsgUser = Nothing, command = LoginRequired})
+          Status name pass -> do credentials <- checkCredentials name pass
+                                 access <- checkAccess name statusIdentifier
+                                 let ok = isJust credentials && isJust access -- laziness rules
+                                 if ok
+                                    then statusMessage chatState >>= (sendTextData connection . toJsonMessage)
+                                    else sendTextData connection (toJsonMessage CommandMsg {commandMsgChannel = Nothing, commandMsgUser = Nothing, command = LoginFailed })
+          _                -> sendTextData connection (toJsonMessage CommandMsg {commandMsgChannel = Nothing, commandMsgUser = Nothing, command = LoginRequired})
 
 -- TODO: only broadcast to logged in users!
 -- TODO: check if user name in message matches username in state
@@ -200,3 +213,12 @@ sendIfClientPresent tvarChatState roomName json user = do
               Left _ -> do warningM "Chat.Application" (T.unpack (userName user) ++ " disconnected")
                            saveTVar tvarChatState (removeUserFromRoom user roomName)
               Right _ -> return ()
+
+-- status message
+
+statusMessage :: TVar ChatState -> IO MessageData
+statusMessage tvarChatState = do
+           chatState <- readTVarIO tvarChatState
+           let loggedIn = Map.size $ userState chatState
+               chatRooms = Map.size $ roomState chatState
+           return StatusMsg { loggedin = loggedIn, chatrooms = chatRooms }

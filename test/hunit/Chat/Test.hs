@@ -42,6 +42,7 @@ chatSuite =
                                  , testCase "remove user from all rooms" caseRemoveUserFromAllRooms ]
   , testGroup "access" [ testCase "wrong credentials" caseWrongCredentials
                        , testCase "no access to chatroom" caseNoAccess ]
+  , testGroup "status" [ testCase "status users and rooms" caseStatus ]
   ]
 
 -- setup test helpers to be able to test sockjs apps independently from underlying sockjs handling
@@ -247,6 +248,18 @@ caseNoAccess = do
        sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
        (outputData, _) <- retrieval conn
        assertEqual "outputData" (Just "{\"command\":\"noAccess\",\"channel\":\"room1\",\"user\":\"user1\"}") outputData
+
+caseStatus = do
+    chatState <- newChatState
+    runTestApplication noAccessSecurity chatState $ \conn@(input,_,_) -> do
+       sendText input "{\"message\": \"LOGIN user1 pass1\"}"
+       _ <- retrieval conn
+       sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"
+       _ <- retrieval conn
+       runTestApplication allOKSecurity chatState $ \conn2@(input2,_,_) -> do
+            sendText input2 "{\"message\": \"STATUS user2 pass2\"}"
+            (outputData, _) <- retrieval conn2
+            assertEqual "status output isn't correct" (Just "{\"loggedIn\":1,\"chatRooms\":1}") outputData
 
 -- useless handle to add to user
 dummyHandle = SockConnection { receiveData = return (T.pack "hello"), sendTextData = print, broadcastData = print } 

@@ -20,6 +20,7 @@ data Room = Room { name :: RoomName }
 -- TOD GADT with credentials (could be any combos of datas)
 data ServerMessage =
   Login String String |
+  Status String String |
   Join String |
   Message String |
   Leave String |
@@ -28,7 +29,7 @@ data ServerMessage =
   deriving (Read, Show, Eq)
 
 chatDef :: Token.LanguageDef st
-chatDef = emptyDef { Token.reservedNames = ["LOGIN", "LOGOUT", "JOIN", "LEAVE", "MSG"]
+chatDef = emptyDef { Token.reservedNames = ["LOGIN", "LOGOUT", "JOIN", "LEAVE", "MSG", "STATUS"]
                    , Token.caseSensitive = False }
 
 lexer = Token.makeTokenParser chatDef
@@ -43,9 +44,17 @@ messageParser =
   <|> try parseJoin
   <|> try parseLeave
   <|> try parseMsg
+  <|> try parseStatus
 
 parseLogin = Login <$>
                 (reserved "LOGIN"  *>
+                many (noneOf " ")) <*>
+                (whiteSpace *>
+                many (noneOf " "))
+                <* eof
+
+parseStatus = Status <$>
+                (reserved "STATUS"  *>
                 many (noneOf " ")) <*>
                 (whiteSpace *>
                 many (noneOf " "))
