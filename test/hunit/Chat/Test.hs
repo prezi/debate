@@ -251,7 +251,7 @@ caseNoAccess = do
 
 caseStatus = do
     chatState <- newChatState
-    runTestApplication noAccessSecurity chatState $ \conn@(input,_,_) -> do
+    runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN user1 pass1\"}"
        _ <- retrieval conn
        sendText input "{\"user\": \"user1\", \"channel\": \"Lobby\", \"message\": \"JOIN room1\"}"

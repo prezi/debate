@@ -220,5 +220,5 @@ statusMessage :: TVar ChatState -> IO MessageData
 statusMessage tvarChatState = do
            chatState <- readTVarIO tvarChatState
            let loggedIn = Map.size $ userState chatState
-               chatRooms = Map.size $ roomState chatState
+               chatRooms = Map.size (roomState chatState) - 1 -- mainChatRoom doesn't count
            return StatusMsg { loggedin = loggedIn, chatrooms = chatRooms }
