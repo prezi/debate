@@ -9,7 +9,6 @@ import System.Log.Handler (setFormatter)
 import System.Log.Formatter
 
 import Network.Wai
-import Network.HTTP.Types (status200)
 import Network.Wai.Application.Static
 
 import Data.String (fromString)
@@ -27,13 +26,18 @@ main = do
 intercept :: Middleware
 intercept app req respond = do
      let path = pathInfo req
+     print path
      case path of
        [] -> staticApp (defaultFileServerSettings $ fromString "public/chat")
                    {
                       ssIndices = mapMaybe (toPiece . pack) ["index.html"]
                    } req respond
+       ["status.html"] -> do putStrLn "here here"
+                             staticApp (defaultFileServerSettings $ fromString "public/chat")
+                                {
+                                    ssIndices = mapMaybe (toPiece . pack) ["status.html"]
+                                } req respond
        ["js", _] -> (staticApp $ embeddedSettings $(embedDir "public/chat") ) req respond
-       ["status"] -> respond $ responseLBS status200 [("Content-Type", "text/plain")] "Status page goes here"
        _ ->  app req respond
 
 -- pass in authentication and access
