@@ -13,7 +13,7 @@
   },
   "devDependencies": {
     "mocha": "*",
-    "zombie": "*",
+    "ws": "*",
     "testium": "1.3.6",
     "ps-tree": "*"
   },
