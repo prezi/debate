@@ -34,14 +34,26 @@ at the time of writing stable happy doesn't play well with GHC 7.8.  Install the
 
 ## Run Chat server example
 
-Run the node page:
-
-    node chat.js
-
 Run the websocket app:
 
     cabal run chat-server-example
 
 access the page in a browser
 
-    http://0.0.0.0:9999/
+    http://0.0.0.0:8989/
+
+To see the status page
+
+    http://0.0.0.0:8989/status.html
+
+## Load tests
+
+Install js dependencies
+
+    npm install
+
+Install GNU Parallel (brew install parallel on mac).
+
+    parallel -j 10 Starting {}\;node test/ws-test.js --connect {} ::: $(seq 40)
+
+For instance: this will run 10 processes in parallel until a total number of 40 have been carried out.

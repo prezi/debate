@@ -1,16 +1,18 @@
 var WebSocket = require('ws');
 
+var numJob = process.argv[3];
+
 // actual test
-var testFunc = function(ws) {
+var testFunc = function(ws, numJob) {
 
-    message(ws, null, "LOGIN test1 pass1", null);
+    message(ws, null, "LOGIN test" + numJob + " pass" + numJob, null);
 
-    message(ws, "test1", "MSG hello there", "Lobby");
+    message(ws, "test" + numJob, "MSG hello there", "Lobby");
 
-    message(ws, "test1", "LOGOUT", "Lobby");
+    message(ws, "test" + numJob, "LOGOUT", "Lobby");
 }
 
-var wsTest = function(testFunction) {
+var wsTest = function(testFunction, numJob) {
     // random server id
     var server = random_number_string(1000);
     // session id
@@ -25,7 +27,7 @@ var wsTest = function(testFunction) {
         case 'o':
             console.log('open');
 
-            testFunction(ws);
+            testFunction(ws, numJob);
 
             setTimeout(function() { ws.close();}, 1000);
 
@@ -69,4 +71,4 @@ var random_number_string = function(max) {
     return (p + random_number(max)).slice(-t);
 };
 
-wsTest(testFunc);
+wsTest(testFunc, numJob);
