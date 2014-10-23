@@ -2,12 +2,24 @@ var WebSocket = require('ws');
 
 var numJob = process.argv[3];
 
-// actual test
-var testFunc = function(ws, numJob) {
+// simple login
+var simpleLoginTest = function(ws, numJob) {
 
     message(ws, null, "LOGIN test" + numJob + " pass" + numJob, null);
 
     message(ws, "test" + numJob, "MSG hello there", "Lobby");
+
+    message(ws, "test" + numJob, "LOGOUT", "Lobby");
+}
+
+// login and join
+var joinRoomTest = function(ws, numJob) {
+
+    message(ws, null, "LOGIN test" + numJob + " pass" + numJob, null);
+
+    message(ws, "test" + numJob, "JOIN room" + numJob, "Lobby");
+
+    message(ws, "test" + numJob, "MSG hello there", "room" + numJob);
 
     message(ws, "test" + numJob, "LOGOUT", "Lobby");
 }
@@ -71,4 +83,4 @@ var random_number_string = function(max) {
     return (p + random_number(max)).slice(-t);
 };
 
-wsTest(testFunc, numJob);
+wsTest(simpleLoginTest, numJob);
