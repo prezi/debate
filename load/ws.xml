@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<!DOCTYPE tsung SYSTEM "/usr/local/Cellar/tsung/1.5.1/share/tsung/tsung-1.0.dtd" []>
+<tsung loglevel="notice" version="1.0">
+  <clients>
+    <client host="localhost" use_controller_vm="true" maxusers="1000" />
+  </clients>
+
+  <servers>
+    <server host="127.0.0.1" port="8989" type="tcp" />
+  </servers>
+
+  <load>
+    <arrivalphase phase="1" duration="120" unit="second">
+      <users maxnumber="100" arrivalrate="10" unit="second" />
+    </arrivalphase>
+  </load>
+
+<sessions>
+<session name="websocket-example" probability="100" type="ts_websocket">
+
+    <!-- define variable to differentiate from other running sessions -->
+    <setdynvars sourcetype="erlang" callback="ts_user_server:get_unique_id">
+        <var name="id1" />
+    </setdynvars>
+
+    <!-- open web socket with generated url -->
+    <request subst="true">
+        <websocket type="connect" path="http://0.0.0.0:8989/chat/%%ts_user_server:get_unique_id%%/%%ts_user_server:get_unique_id%%/websocket"></websocket>
+    </request>
+
+    <!-- sockjs messages -->
+    <request subst="true">
+        <websocket type="message" frame="text" ack="no_ack">["{\"message\":\"LOGIN test%%_id1%% pass%%_id1%%\"}"]</websocket>
+    </request>
+
+    <!-- wait a little bit -->
+    <thinktime min="1" max="3" random="true"></thinktime>
+
+    <request subst="true">
+        <websocket type="message" frame="text" >["{\"user\":\"test%%_id1%%\",\"message\":\"JOIN room%%_id1%%\",\"channel\":\"Lobby\"}"]</websocket>
+    </request>
+
+    <thinktime min="1" max="3" random="true"></thinktime>
+
+    <request subst="true">
+        <websocket type="message" frame="text" >["{\"user\":\"test%%_id1%%\",\"message\":\"MSG hello there\",\"channel\":\"room%%_id1%%\"}"]</websocket>
+    </request>
+
+    <thinktime min="1" max="3" random="true"></thinktime>
+
+    <request subst="true">
+        <websocket type="message" frame="text" >["{\"user\":\"test%%_id1%%\",\"message\":\"LOGOUT\",\"channel\":\"Lobby\"}"]</websocket>
+    </request>
+
+    <!-- close ws -->
+    <request>
+        <websocket type="close"></websocket>
+    </request>
+</session>
+</sessions>
+</tsung>
