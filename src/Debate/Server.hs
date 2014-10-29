@@ -213,20 +213,23 @@ newWebsocketClient application state path connection = do
     receive <- atomically newTChan
     addClient state sessionId receive
     WS.sendTextData connection (T.pack "o") -- sockjs client expects an "o" message to open socket
-    heartThreadId <- forkIO $ heartbeat connection
-    appThreadId   <- forkIO $ runApplication application sessionId state receive
-    race_ (receiveLoop receive connection state sessionId appThreadId heartThreadId) (sendLoop sessionId state connection)
-    return ()
+    heartbeatAsync <- async (heartbeat connection)
+    applicationAsync <- async (runApplication application sessionId state receive)
+    receiveLoopAsync <- async (receiveLoop receive connection state sessionId)
+    sendLoopAsync <- async (sendLoop sessionId state connection)
+    (_, res) <- waitAnyCatchCancel [heartbeatAsync, applicationAsync, receiveLoopAsync, sendLoopAsync]
+    case res of
+      Right _ -> return ()
+      Left e -> putStrLn $ "end of line " ++ show e
 
-receiveLoop receive connection state sessionId appThreadId heartThreadId = handle (catchDisconnect state sessionId) $
+receiveLoop receive connection state sessionId = handle (catchDisconnect state sessionId) $
     forever $ do
        msg <- WS.receiveData connection :: IO T.Text
+       putStrLn $ "received by app " ++ show msg
        atomically $ writeTChan receive $ msgFromFrame msg
      where catchDisconnect state sessionId e =
             case fromException e of
                 Just WS.ConnectionClosed -> do removeClient state sessionId
-                                               killThread appThreadId
-                                               killThread heartThreadId
                                                return ()
                 _ -> return ()
 sendLoop sessionId state connection =
