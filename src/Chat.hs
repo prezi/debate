@@ -26,7 +26,6 @@ main = do
 intercept :: Middleware
 intercept app req respond = do
      let path = pathInfo req
-     print path
      case path of
        [] -> staticApp (defaultFileServerSettings $ fromString "public/chat")
                    {

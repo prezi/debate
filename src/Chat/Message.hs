@@ -12,11 +12,6 @@ import Text.ParserCombinators.Parsec.Language
 import Control.Applicative ((<$>), (<*>), (*>), (<*))
 import qualified Text.Parsec.Token as Token
 
-type RoomName = T.Text
-
-data Room = Room { name :: RoomName }
-            deriving (Show)
-
 -- TOD GADT with credentials (could be any combos of datas)
 data ServerMessage =
   Login String String |

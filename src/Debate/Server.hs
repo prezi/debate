@@ -16,7 +16,7 @@ where
 
 import           Control.Monad (forever)
 import           Control.Monad.Trans (liftIO)
-import           Control.Concurrent (forkIO, threadDelay, killThread)
+import           Control.Concurrent (forkIO, threadDelay)
 import           Control.Concurrent.STM
 import           Control.Concurrent.Async
 import           Control.Exception (fromException, handle, Exception(..), throw)
@@ -67,7 +67,7 @@ runServer configuration application mbMiddleware = do
         mwApp = maybe httpApp (\mw -> mw httpApp) mbMiddleware
     case transports of
       ["xhr_polling"] -> Warp.runSettings settings $ httpApplication configuration application state
-      otherwise -> Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions (wsApplication configuration application state) mwApp
+      _ -> Warp.runSettings settings $ WaiWS.websocketsOr WS.defaultConnectionOptions (wsApplication configuration application state) mwApp
 
 -- TODO: add routing for '/info', '/greeting', and all xhr polling
 -- the websocket or xhr-polling transport should go over 
@@ -82,9 +82,9 @@ httpApplication configuration application state req respond = do
                                    else response404 respond
 
 matchPrefix :: [T.Text] -> [T.Text] -> Bool
-matchPrefix [] rest = True
+matchPrefix [] _ = True
 matchPrefix (x:xs) (y:ys) = (x == y) && matchPrefix xs ys
-matchPrefix (x:_) [] = False
+matchPrefix _ [] = False
 
 routing pathInfo application state req respond = 
                     case pathInfo of
@@ -128,7 +128,6 @@ addClient ServerState{..} sessionId receiveChan = atomically $ do
 removeClient :: ServerState -> SessionId -> IO ()
 removeClient ServerState{..} sessionId = atomically $ do
                    clientMap <- readTVar clients
-                   emptyPending <- newEmptyTMVar
                    writeTVar clients $ Map.delete sessionId clientMap
 
 -- xhr delay 5 seconds for now - could be a parameter
@@ -186,12 +185,12 @@ runApplication application sessionId state receive = forever $
 broadcast :: ServerState -> T.Text -> IO ()
 broadcast state@ServerState{..} msg = do
     clientMap <- readTVarIO clients
-    Data.Traversable.mapM (\client -> addPendingMessages (sessionID client) state msg) clientMap -- mapM_ for traversable?
+    _ <- Data.Traversable.mapM (\client -> addPendingMessages (sessionID client) state msg) clientMap -- mapM_ for traversable?
     return ()
 
 -- add msg to TVar as a queue
 addPendingMessages :: SessionId -> ServerState -> T.Text -> IO ()
-addPendingMessages sessionId state@ServerState{..} msg = atomically $ do
+addPendingMessages sessionId ServerState{..} msg = atomically $ do
     clientMap <- readTVar clients
     let mbClient = Map.lookup sessionId clientMap
     if isNothing mbClient
@@ -209,7 +208,7 @@ wsApplication configuration application state pending@WS.PendingConnection {pend
        else WS.rejectRequest pending "url not handled by this server"
 
 newWebsocketClient application state path connection = do
-    let [serververId, sessionId, "websocket"] = path
+    let [_, sessionId, "websocket"] = path
     receive <- atomically newTChan
     addClient state sessionId receive
     WS.sendTextData connection (T.pack "o") -- sockjs client expects an "o" message to open socket
@@ -227,9 +226,9 @@ receiveLoop receive connection state sessionId = handle (catchDisconnect state s
        msg <- WS.receiveData connection :: IO T.Text
        putStrLn $ "received by app " ++ show msg
        atomically $ writeTChan receive $ msgFromFrame msg
-     where catchDisconnect state sessionId e =
+     where catchDisconnect st sessId e =
             case fromException e of
-                Just WS.ConnectionClosed -> do removeClient state sessionId
+                Just WS.ConnectionClosed -> do removeClient st sessId
                                                return ()
                 _ -> return ()
 sendLoop sessionId state connection =
@@ -273,6 +272,11 @@ headerCORS def req = allowHeaders ++ allowOrigin ++ allowCredentials
 defaultConfiguration :: Config
 defaultConfiguration = Config { port = 8888, prefix = "/", transportWhitelist = ["websocket", "xhr_polling"] }
 
+setPort :: Int -> Config -> Config
 setPort num configuration = configuration { port = num } 
+
+setPrefix :: T.Text -> Config -> Config
 setPrefix pf configuration = configuration { prefix = pf } 
+
+setTransportWhitelist :: [T.Text] -> Config -> Config
 setTransportWhitelist tl configuration = configuration { transportWhitelist = tl } 

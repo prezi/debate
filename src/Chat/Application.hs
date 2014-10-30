@@ -6,13 +6,12 @@ module Chat.Application (
 , newChatState
 ) where
 
-import Control.Monad (mzero, forever, void, when, guard, unless)
+import Control.Monad (forever, void, when, guard, unless)
 import Control.Monad.Trans.Either
 import Control.Monad.Trans.Class (lift)
 import Control.Concurrent.STM.TVar
 import Control.Exception (tryJust)
-import Control.Applicative (liftA)
-import Data.Maybe (fromJust, isNothing, fromMaybe, isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Aeson (FromJSON(..), ToJSON(..), decodeStrict, Value(..), (.=), object)
 import Data.Aeson.Encode (encodeToTextBuilder)
 import GHC.Generics (Generic) -- generics
@@ -63,6 +62,7 @@ data ChatCommand = LoginCommand
 
 instance FromJSON ClientMessage
 
+-- type -> Value
 instance ToJSON MessageData where
   toJSON (MessageData user channel message) =
     object [ "user" .= user
@@ -115,9 +115,9 @@ loggedIn userName connection chatState checkAccess = do
         let user = User (T.pack userName) connection
         saveTVar chatState $ addUserToRoom mainChatRoom user
         warningM "Chat.Application" (userName ++ " just logged in")
-        chatstate <- readTVarIO chatState
-        let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = LoginCommand }
-        --sendToRoom chatState mainChatRoom loginMsg
+        -- chatstate <- readTVarIO chatState
+        -- let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = LoginCommand }
+        -- sendToRoom chatState mainChatRoom loginMsg
         runEitherT $ forever $ do
             (mbUsr, mbRoom, msg) <- lift $ receiveJsonMessage connection
             case msg of
@@ -126,9 +126,10 @@ loggedIn userName connection chatState checkAccess = do
                           left () -- exit
               _      -> when (mbUsr == Just (T.pack userName)) (lift $ sendIntendedMessage msg mbRoom userName chatState user checkAccess) -- only send if you are the intended recipient.
 
+logout :: String -> TVar ChatState -> User -> IO ()
 logout userName chatState user = do
-        let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
-        --sendToRoom chatState mainChatRoom logoutMsg
+        -- let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
+        -- sendToRoom chatState mainChatRoom logoutMsg
         warningM "Chat.Application" (userName ++ " just logged out")
         saveTVar chatState (removeUserFromAll user)
 
@@ -146,17 +147,18 @@ sendIntendedMessage msg mbRoom userName chatState user checkAccess =
                                  if isUserInRoom chState user tRoomName
                                    then leaveRoom user roomName chatState
                                    else sendToClient chatState mainChatRoom CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just tRoomName, command = NotJoined } user
-            Login name pass -> do let alreadyLoggedInMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = AlreadyLoggedIn }
-                                  sendToClient chatState mainChatRoom alreadyLoggedInMsg user
+            Login _ _ -> do let alreadyLoggedInMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = AlreadyLoggedIn }
+                            sendToClient chatState mainChatRoom alreadyLoggedInMsg user
             Message str -> do let roomname = fromMaybe mainChatRoom mbRoom
                               access <- checkAccess userName (T.unpack roomname)
                               -- todo check if user joined as well
                               case access of
-                                 Just userName -> do let chatMsg = MessageData { messageDataUser = T.pack userName, messageDataChannel = roomname, messageDataMessage = userName ++ ": " ++ str}
+                                 Just username -> do let chatMsg = MessageData { messageDataUser = T.pack username, messageDataChannel = roomname, messageDataMessage = username ++ ": " ++ str}
                                                      sendToRoom chatState roomname chatMsg
                                  Nothing -> warningM "Chat.Application" (userName ++ " attempted to post to " ++ T.unpack roomname)
             _  -> return () -- no action, potentially logging
 
+receiveJsonMessage :: SockConnection -> IO (Maybe T.Text, Maybe T.Text, ServerMessage)
 receiveJsonMessage connection = do
             received <- receiveData connection
             debugM "Chat.Application" $ T.unpack received
@@ -176,6 +178,7 @@ joinRoom user roomname chatState checkAccess = do
                               sendToClient chatState mainChatRoom noAccessMsg user
                               warningM "Chat.Application" (username ++ " attempted to join " ++ roomname)
 
+leaveRoom :: User -> String -> TVar ChatState -> IO ()
 leaveRoom user roomname chatState = do
             let tRoomName = T.pack roomname
                 leaveMsg = CommandMsg { commandMsgUser = Just (userName user), commandMsgChannel = Just tRoomName, command = LeaveCommand }
@@ -186,6 +189,7 @@ leaveRoom user roomname chatState = do
 -- if not valid json: invalid msg
 -- if valid json but message not parsed : chat msg
 -- else: parsed command msg
+parseJsonMessage :: T.Text -> (Maybe T.Text, Maybe T.Text, ServerMessage)
 parseJsonMessage received = do
             let mbMsgData = decodeStrict (encodeUtf8 received) :: Maybe ClientMessage
             case mbMsgData of
@@ -208,12 +212,15 @@ sendToRoom tvarChatState roomName message = do
                json = toJsonMessage message
            mapM_ (sendIfClientPresent tvarChatState roomName json) users
 
+sendToClient :: TVar ChatState -> T.Text -> MessageData -> User -> IO ()
 sendToClient chatState roomName msg = sendIfClientPresent chatState roomName (toJsonMessage msg)
 
+sendIfClientPresent :: TVar ChatState -> T.Text -> T.Text -> User -> IO ()
 sendIfClientPresent tvarChatState roomName json user = do
            err <- tryJust (guard . (== ClientNotFoundException)) $ sendTextData (handle user) json
            case err of
               Left _ -> do warningM "Chat.Application" (T.unpack (userName user) ++ " disconnected")
+                           putStrLn $ "disconnected " ++ show (userName user)
                            saveTVar tvarChatState (removeUserFromRoom user roomName)
               Right _ -> return ()
 
@@ -222,6 +229,6 @@ sendIfClientPresent tvarChatState roomName json user = do
 statusMessage :: TVar ChatState -> IO MessageData
 statusMessage tvarChatState = do
            chatState <- readTVarIO tvarChatState
-           let loggedIn = Map.size $ userState chatState
-               chatRooms = Map.size (roomState chatState) - 1 -- mainChatRoom doesn't count
-           return StatusMsg { loggedin = loggedIn, chatrooms = chatRooms }
+           let isLoggedIn = Map.size $ userState chatState
+               chatRooms = Map.size (roomState chatState) - 1 -- mainChatRoom doesn't count.
+           return StatusMsg { loggedin = isLoggedIn, chatrooms = chatRooms }

@@ -1,8 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 module Chat.State (
   ChatState(..)
-, RoomState(..)
-, UserState(..)
 , User(..)
 , Room(..)
 , newChatState
@@ -41,6 +39,7 @@ data ChatState = ChatState { userState :: UserState
                            , roomState :: RoomState }
                  deriving Show
 
+newChatState :: IO (TVar ChatState)
 newChatState = atomically $ newTVar ChatState {userState = Map.empty, roomState = Map.empty}
 
 -- functions to manipulate state
@@ -49,16 +48,16 @@ saveTVar :: TVar ChatState -> (ChatState -> ChatState) -> IO ()
 saveTVar chatState f = atomically $ readTVar chatState >>= writeTVar chatState . f
 
 addUserToRoom :: T.Text -> User -> ChatState -> ChatState
-addUserToRoom roomname usr@User{userName = username} chatState = do
+addUserToRoom roomname user@User{userName = username} chatState = do
             let chatStateWithRoom = addRoomIfNew roomname chatState
                 chatStateWithUserAndRoom = addUserIfNew username chatStateWithRoom
                 roomMap = roomState chatStateWithUserAndRoom
-                newRoomMap = Map.adjust (addUser usr) roomname roomMap
+                newRoomMap = Map.adjust (addUser user) roomname roomMap
                 userMap = userState chatStateWithUserAndRoom
                 newUserMap = Map.adjust (addRoom roomname) username userMap
             ChatState { userState = newUserMap, roomState = newRoomMap }
             where addUser usr Room{roomName = name, usersInRoom = usrs} = Room{roomName = name, usersInRoom = usr:usrs }
-                  addRoom roomname rooms = roomname:rooms
+                  addRoom room rooms = room:rooms
 
 
 addRoomIfNew :: T.Text -> ChatState -> ChatState
@@ -82,8 +81,8 @@ removeUserFromRoom user@User{userName = userName} roomName ChatState{..} = do
             let newRoomState = Map.adjust (removeUser user) roomName roomState
                 newUserState = Map.adjust (removeRoom roomName) userName userState
             ChatState {userState = newUserState, roomState = newRoomState }
-            where removeUser user Room{roomName = name, usersInRoom = usrs} = Room{roomName = name, usersInRoom = filter (\usr -> user /= usr) usrs}
-                  removeRoom roomName = filter (\name -> roomName /= name)
+            where removeUser usr Room{roomName = name, usersInRoom = usrs} = Room{roomName = name, usersInRoom = filter (\u -> usr /= u) usrs}
+                  removeRoom roomname = filter (\name -> roomname /= name)
 
 isUserInRoom :: ChatState -> User -> T.Text -> Bool
 isUserInRoom chatState user roomname = maybe False (elem user . usersInRoom) (Map.lookup roomname (roomState chatState))
