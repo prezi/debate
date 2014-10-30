@@ -13,13 +13,15 @@ import Control.Concurrent.STM.TVar
 import Control.Exception (tryJust)
 import Control.Applicative (liftA)
 import Data.Maybe (fromJust, isNothing, fromMaybe, isJust)
-import Data.Aeson (FromJSON(..), ToJSON(..), decodeStrict, encode, Value(..), (.=), object)
+import Data.Aeson (FromJSON(..), ToJSON(..), decodeStrict, Value(..), (.=), object)
+import Data.Aeson.Encode (encodeToTextBuilder)
 import GHC.Generics (Generic) -- generics
 import Chat.Message
 import qualified Data.Map.Strict as Map
 import qualified Data.Text       as T
-import Data.ByteString.Lazy (toStrict)
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.Text.Lazy (toStrict)
+import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Lazy.Builder (toLazyText)
 
 import System.Log.Logger
 
@@ -115,7 +117,7 @@ loggedIn userName connection chatState checkAccess = do
         warningM "Chat.Application" (userName ++ " just logged in")
         chatstate <- readTVarIO chatState
         let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = LoginCommand }
-        sendToRoom chatState mainChatRoom loginMsg
+        --sendToRoom chatState mainChatRoom loginMsg
         runEitherT $ forever $ do
             (mbUsr, mbRoom, msg) <- lift $ receiveJsonMessage connection
             case msg of
@@ -126,7 +128,7 @@ loggedIn userName connection chatState checkAccess = do
 
 logout userName chatState user = do
         let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
-        sendToRoom chatState mainChatRoom logoutMsg
+        --sendToRoom chatState mainChatRoom logoutMsg
         warningM "Chat.Application" (userName ++ " just logged out")
         saveTVar chatState (removeUserFromAll user)
 
@@ -193,7 +195,8 @@ parseJsonMessage received = do
                                             Right msg -> (user clientMessage, channel clientMessage, msg)
                 Nothing -> (Nothing, Nothing, Invalid "json parsing error")
 
-toJsonMessage = decodeUtf8 . toStrict . encode
+toJsonMessage :: MessageData -> T.Text
+toJsonMessage = toStrict . toLazyText . encodeToTextBuilder . toJSON
 
 -- send message to all users of a chat room
 -- handle cleanup of closed clients!
