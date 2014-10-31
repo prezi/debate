@@ -224,7 +224,6 @@ newWebsocketClient application state path connection = do
 receiveLoop receive connection state sessionId = handle (catchDisconnect state sessionId) $
     forever $ do
        msg <- WS.receiveData connection :: IO T.Text
-       putStrLn $ "received by app " ++ show msg
        atomically $ writeTChan receive $ msgFromFrame msg
      where catchDisconnect st sessId e =
             case fromException e of
