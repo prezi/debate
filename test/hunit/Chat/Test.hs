@@ -25,9 +25,9 @@ import Chat.Application
 
 chatSuite =
   [
-    testGroup "login - logout" [ testCase "login successful" caseLoginSuccessful
-                               , testCase "logout" caseLogout
-                               , testCase "login twice" caseLoginTwice ]
+    testGroup "login - logout" [ -- testCase "login successful" caseLoginSuccessful
+                                 -- , testCase "logout" caseLogout
+                                 testCase "login twice" caseLoginTwice ]
   , testGroup "chatrooms" [ testCase "chat in lobby" caseChatInLobby
                           , testCase "join chat room feedback" caseJoinChatroomMsg
                           , testCase "join chat room" caseJoinChatroom
@@ -88,13 +88,16 @@ retrieval (input, output, broadcast) = do
                       retrievalLoop output broadcast (n-1)
               else return (outputData, broadcastData)
 
+{-
 caseLoginSuccessful = do
     chatState <- newChatState
     runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
        sendText input "{\"message\": \"LOGIN test test\"}"
        (outputData, broadcastData) <- retrieval conn
        assertEqual "output data" (Just "{\"command\":\"login\",\"channel\":\"Lobby\",\"user\":\"test\"}") outputData
+-}
 
+{-
 caseLogout = do
     chatState <- newChatState
     runTestApplication allOKSecurity chatState $ \conn@(input,_,_) -> do
@@ -103,6 +106,7 @@ caseLogout = do
        sendText input "{\"user\": \"test\", \"channel\": \"Lobby\", \"message\": \"LOGOUT\"}"
        (outputData, broadcastData) <- retrieval conn
        assertEqual "output data" (Just "{\"command\":\"logout\",\"channel\":null,\"user\":\"test\"}") outputData
+-}
 
 caseChatInLobby = do
     chatState <- newChatState
