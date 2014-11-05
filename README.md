@@ -48,12 +48,21 @@ To see the status page
 
 ## Load tests
 
-Install js dependencies
+Install tsung
 
-    npm install
+    brew install tsung
 
-Install GNU Parallel (brew install parallel on mac).
+A not too unrealistic scenario was added in load/ws.xml - to run it
 
-    parallel -j 10 Starting {}\;node test/ws-test.js --connect {} ::: $(seq 40)
+    tsung -f load/ws.xml
 
-For instance: this will run 10 processes in parallel until a total number of 40 have been carried out.
+For full performance, do the following:
+
+Increase the file descriptor limit for both the process and tsung:
+
+sudo launchctl limit maxfiles 1000000 1000000
+ulimit -n 100000
+
+Use all cores (N2 in following examples for 2 cores)
+
+cabal run chat-server-example -- +RTS -N2
