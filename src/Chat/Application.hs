@@ -115,9 +115,9 @@ loggedIn userName connection chatState checkAccess = do
         let user = User (T.pack userName) connection
         saveTVar chatState $ addUserToRoom mainChatRoom user
         warningM "Chat.Application" (userName ++ " just logged in")
-        -- chatstate <- readTVarIO chatState
-        -- let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = LoginCommand }
-        -- sendToRoom chatState mainChatRoom loginMsg
+        chatstate <- readTVarIO chatState
+        let loginMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Just mainChatRoom, command = LoginCommand }
+        sendToRoom chatState mainChatRoom loginMsg
         runEitherT $ forever $ do
             (mbUsr, mbRoom, msg) <- lift $ receiveJsonMessage connection
             case msg of
@@ -128,8 +128,8 @@ loggedIn userName connection chatState checkAccess = do
 
 logout :: String -> TVar ChatState -> User -> IO ()
 logout userName chatState user = do
-        -- let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
-        -- sendToRoom chatState mainChatRoom logoutMsg
+        let logoutMsg = CommandMsg { commandMsgUser = Just $ T.pack userName, commandMsgChannel = Nothing, command = LogoutCommand }
+        sendToRoom chatState mainChatRoom logoutMsg
         warningM "Chat.Application" (userName ++ " just logged out")
         saveTVar chatState (removeUserFromAll user)
 
