@@ -223,7 +223,7 @@ sendIfClientPresent tvarChatState roomName json user = do
            case err of
               Left _ -> do warningM "Chat.Application" (T.unpack (userName user) ++ " disconnected")
                            putStrLn $ "disconnected " ++ show (userName user)
-                           saveTVar tvarChatState (removeUserFromRoom user roomName)
+                           saveTVar tvarChatState (removeUserFromAll user)
               Right _ -> return ()
 
 -- status message

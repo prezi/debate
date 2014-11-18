@@ -196,7 +196,8 @@ addPendingMessages sessionId ServerState{..} msg = atomically $ do
     if isNothing mbClient
       then throw ClientNotFoundException
       else do let client = fromJust mbClient
-              putTMVar (pendingMessages client) [msg]
+              _ <- tryPutTMVar (pendingMessages client) [msg]
+              return ()
 
 -- protocol framing see http://sockjs.github.io/sockjs-protocol/sockjs-protocol-0.3.html
 wsApplication configuration application state pending@WS.PendingConnection {pendingRequest = WS.RequestHead path _ _} = do
@@ -235,11 +236,11 @@ sendLoop sessionId state connection =
        msg <- msgFromApplication sessionId state
        WS.sendTextData connection $ msgToFrame msg
 
--- The session must time out after 5 seconds of not having a receiving connection. The server must send a heartbeat frame every 25 seconds. The heartbeat frame contains a single h character. This delay may be configurable.
+-- The session must time out after 5 seconds of not having a receiving connection. The server must send a heartbeat frame every 2.5 seconds. The heartbeat frame contains a single h character. This delay may be configurable.
 -- TODO timeout of session and removal of data from server state
 heartbeat connection = do
     WS.sendTextData connection (frameToText $ ControlFrame HeartbeatFrame)
-    threadDelay 25000 -- default in sockjs js implementation
+    threadDelay 2500000 -- default in sockjs js implementation
     heartbeat connection
 
 -- utils
