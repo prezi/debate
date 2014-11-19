@@ -7,7 +7,7 @@ var WebSocket = require('ws'),
     config = require('./config.js');
 
 describe("blocking behavior", function() {
-    this.timeout(5000);
+    this.timeout(10000);
     var chatProcess;
 
     // making sure there are no surviving chat processes
