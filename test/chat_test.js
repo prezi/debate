@@ -88,13 +88,18 @@ describe("blocking behavior", function() {
 
                     message(ws2, "test2", "MSG hello too", "Lobby")
 
-                    ws.close();
-
                     setTimeout(function() {
-                        message(ws2, "test2", "MSG hello1", "Lobby") 
-                        message(ws2, "test2", "MSG hello2", "Lobby") 
-                       // message(ws2, "test2", "MSG hello3", "Lobby") 
-                        message(ws2, "test2", "LOGOUT", "Lobby") 
+                        ws.close();
+
+                        setTimeout(function() {
+                            message(ws2, "test2", "MSG hello1", "Lobby") 
+                            setTimeout(function() {
+                                message(ws2, "test2", "MSG hello2", "Lobby");
+                                setTimeout(function() {
+                                message(ws2, "test2", "LOGOUT", "Lobby") 
+                                }, 500);
+                            }, 500);
+                        }, 500);
                     }, 500);
                 }, 500);
             case 'a':
