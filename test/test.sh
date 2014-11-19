@@ -18,4 +18,8 @@ status=$?
 
 kill $selenium_pid
 
+sleep 1
+
+./node_modules/mocha/bin/mocha ./test/chat_test.js
+
 exit $status

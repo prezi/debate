@@ -9,4 +9,8 @@ config.websocketServer = path.resolve(__dirname, '..', 'dist/build/debate-exampl
 config.websocketArgs = [];
 config.websocketCommand = "debate-example";
 
+config.chatServer = path.resolve(__dirname, '..', 'dist/build/chat-server-example/chat-server-example');
+config.chatArgs = [];
+config.chatCommand = "chat-server-example";
+
 module.exports = config
